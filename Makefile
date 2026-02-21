@@ -1,28 +1,34 @@
-CC = g++
-CFLAGS = -Wall -Werror -Wextra -std=c++23
-BUILDDIR = build
+CXX = g++
+CXXFLAGS = -Wall -Werror -Wextra -std=c++23
 EXECDIR = exec
-SRCDIR = src
-INCDIR = inc
-SRCS = $(wildcard $(SRCDIR)/*.cpp)
-OBJS = $(SRCS:$(SRCDIR)/%.cpp=$(BUILDDIR)/%.o)
-TARGET = $(EXECDIR)/p2p-network-cs4390
+TARGETS = $(EXECDIR)/tracker $(EXECDIR)/peer
 
-run:
-	./exec/p2p-network-cs4390
+TRACKERSRC = $(wildcard tracker/*.cpp)
+TRACKERBUILD = tracker/build
+TRACKEROBJS = $(TRACKERSRC:tracker/%.cpp=$(TRACKERBUILD)/%.o)
 
-all: clean dirs $(TARGET)
+PEERSRC = $(wildcard peer/*.cpp)
+PEERBUILD = peer/build
+PEEROBJS = $(PEERSRC:peer/%.cpp=$(PEERBUILD)/%.o)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $^ -o $@
+all: clean dirs $(EXECDIR)/peer $(EXECDIR)/tracker
 
-$(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
-	$(CC) $(CFLAGS) -c $^ -o $@
+$(EXECDIR)/peer: $(PEEROBJS)
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+$(PEERBUILD)/%.o: $(PEERSRC)
+	$(CXX) $(CXXFLAGS) -c $^ -o $@
+
+$(EXECDIR)/tracker: $(TRACKEROBJS)
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+$(TRACKERBUILD)/%.o: $(TRACKERSRC)
+	$(CXX) $(CXXFLAGS) -c $^ -o $@
 
 dirs:
-	mkdir -p $(BUILDDIR) $(EXECDIR)
+	mkdir -p $(TRACKERBUILD) $(PEERBUILD) $(EXECDIR)
 
 clean:
-	rm -rf $(BUILDDIR) $(EXECDIR)
+	rm -rf $(TRACKERBUILD) $(PEERBUILD) $(EXECDIR)
 
-.PHONY: clean dirs all run
+.PHONY: clean dirs all run tracker peer

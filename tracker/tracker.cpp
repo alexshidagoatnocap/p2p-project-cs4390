@@ -1,6 +1,6 @@
 #include <print>
 
 int main() {
-  std::println("Hello World!");
+  std::println("Hello from Tracker!");
   return 0;
 }
