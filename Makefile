@@ -11,7 +11,15 @@ PEERSRC = $(wildcard peer/*.cpp)
 PEERBUILD = peer/build
 PEEROBJS = $(PEERSRC:peer/%.cpp=$(PEERBUILD)/%.o)
 
-all: clean dirs $(EXECDIR)/peer $(EXECDIR)/tracker
+rebuild: clean $(EXECDIR)/peer $(EXECDIR)/tracker
+
+all: $(EXECDIR)/peer $(EXECDIR)/tracker
+
+tracker: $(EXECDIR)/tracker
+	./exec/tracker
+
+peer: $(EXECDIR)/peer
+	./exec/peer
 
 $(EXECDIR)/peer: $(PEEROBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@
@@ -29,6 +37,6 @@ dirs:
 	mkdir -p $(TRACKERBUILD) $(PEERBUILD) $(EXECDIR)
 
 clean:
-	rm -rf $(TRACKERBUILD) $(PEERBUILD) $(EXECDIR)
+	rm -rf $(TRACKERBUILD)/*.o $(PEERBUILD)/*.o $(EXECDIR)/*
 
 .PHONY: clean dirs all run tracker peer
