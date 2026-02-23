@@ -1,5 +1,5 @@
 add_executable(peer_app
-  peer.cpp
+  peer.c
 )
 
 target_link_libraries(peer_app

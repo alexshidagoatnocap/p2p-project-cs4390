@@ -4,13 +4,15 @@ This is a Peer-to-Peer network implementation using sockets on Linux for CS4390.
 
 ## Build Instructions
 
+This project is written using the C23 standard.
+
 To build the program, you will need
 
 - A Linux-based operating system
 
-- A GCC/G++ 15+
+- A GCC/G++ 13+
 
-- CMake 3.20+
+- CMake 3.10+
 
 - GNU Make
 

@@ -1,5 +1,5 @@
 add_executable(tracker_app
-  tracker.cpp
+  tracker.c
 )
 
 target_link_libraries(tracker_app
