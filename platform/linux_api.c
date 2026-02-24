@@ -1,4 +1,4 @@
-#include "linux_api.h"
+#include "api.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdint.h>
@@ -17,3 +17,7 @@ struct sockaddr_in *createIPV4Addr(const char *ip, uint16_t port) {
 }
 
 void removeIPV4Addr(struct sockaddr_in *addr) { free(addr); }
+
+// Stub functions for initializing a socket API, no need to init on linux
+void initSocketAPI() {}
+void cleanupSocketAPI() {}

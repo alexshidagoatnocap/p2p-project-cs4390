@@ -8,7 +8,6 @@ if(PLATFORM_API STREQUAL "LINUX_API")
   target_include_directories(peer_app
     PRIVATE
     ../platform
-    ../platform/linux
   )
 
   target_link_libraries(peer_app
@@ -19,7 +18,6 @@ elseif(PLATFORM_API STREQUAL "WINDOWS_API")
   target_include_directories(peer_app
     PRIVATE
     ../platform
-    ../platform/windows
   )
   target_link_libraries(peer_app
     PRIVATE
