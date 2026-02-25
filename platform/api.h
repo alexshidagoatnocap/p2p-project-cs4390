@@ -26,3 +26,5 @@ size_t sendToSocket(int32_t sockfd, const char *buffer, uint32_t len,
 
 size_t recvFromSocket(int32_t sockfd, const char *buffer, uint32_t len,
                       int32_t flags);
+
+void closeSocket(int32_t sockfd);

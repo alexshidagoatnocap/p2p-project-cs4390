@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 int32_t createSocketFileDescriptor(uint32_t domain, uint32_t type,
                                    uint32_t protocol) {
@@ -54,6 +55,8 @@ size_t recvFromSocket(int32_t sockfd, const char *buffer, uint32_t len,
   size_t status = recv(sockfd, (void *)buffer, len, 0);
   return status;
 }
+
+void closeSocket(int32_t sockfd) { close(sockfd); }
 
 // Stub functions for initializing a socket API, no need to init on linux
 void initSocketAPI() {}

@@ -6,7 +6,7 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
-#else
+#elif __linux__
 #include <sys/socket.h>
 #endif
 
@@ -38,6 +38,8 @@ int main() {
 
   printf("%s\n", buffer);
   removeIPV4Addr(address);
+
+  closeSocket(socketFD);
 
   cleanupSocketAPI();
   return 0;
