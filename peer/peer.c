@@ -1,11 +1,14 @@
 #include "peer.h"
 #include "api.h"
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
+#endif
 
 int main() {
   initSocketAPI();
