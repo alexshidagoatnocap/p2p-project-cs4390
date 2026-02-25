@@ -17,12 +17,9 @@ int main() {
     exit(EXIT_FAILURE);
   }
 
-  struct sockaddr_in *address = createIPV4Addr("142.250.188.46", 80);
+  void *address = createIPV4Addr("142.250.188.46", 80);
 
-  int32_t connectStatus =
-      connect(socketFD, (struct sockaddr *)address, sizeof(*address));
-  // connectToSocket(socketFD, address, sizeof(address));
-  // connectToSocket(socketFD, (struct sockaddr *)address, sizeof(*address));
+  int32_t connectStatus = connectToSocket(socketFD, address);
   if (connectStatus == -1) {
     printf("Peer Connection Failed!\n");
     exit(EXIT_FAILURE);
@@ -31,10 +28,10 @@ int main() {
   printf("Peer Connection Successful! \n");
 
   char httpMsg[] = "GET \\ HTTP/1.1\r\nHost:google.com\r\n\r\n";
-  send(socketFD, httpMsg, sizeof(httpMsg), 0);
+  sendToSocket(socketFD, httpMsg, sizeof(httpMsg), 0);
 
   char buffer[2048];
-  recv(socketFD, buffer, sizeof(buffer) - 1, 0);
+  recvFromSocket(socketFD, buffer, sizeof(buffer) - 1, 0);
 
   printf("%s\n", buffer);
   removeIPV4Addr(address);
