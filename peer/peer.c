@@ -2,14 +2,16 @@
 #include "api.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 
 int main() {
+  initSocketAPI();
   printf("Hello from Peer!\n");
 
-  int socketFD = socket(AF_INET, SOCK_STREAM, 0);
+  int32_t socketFD = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
   if (socketFD == -1) {
     printf("Peer Socket Failed!\n");
     exit(EXIT_FAILURE);
@@ -17,8 +19,10 @@ int main() {
 
   struct sockaddr_in *address = createIPV4Addr("142.250.188.46", 80);
 
-  int connectStatus =
+  int32_t connectStatus =
       connect(socketFD, (struct sockaddr *)address, sizeof(*address));
+  // connectToSocket(socketFD, address, sizeof(address));
+  // connectToSocket(socketFD, (struct sockaddr *)address, sizeof(*address));
   if (connectStatus == -1) {
     printf("Peer Connection Failed!\n");
     exit(EXIT_FAILURE);
@@ -35,5 +39,6 @@ int main() {
   printf("%s\n", buffer);
   removeIPV4Addr(address);
 
+  cleanupSocketAPI();
   return 0;
 }
