@@ -31,10 +31,10 @@ int main() {
   printf("Peer Connection Successful! \n");
 
   char httpMsg[] = "GET \\ HTTP/1.1\r\nHost:google.com\r\n\r\n";
-  sendToSocket(socketFD, httpMsg, sizeof(httpMsg), 0);
+  sendSocket(socketFD, httpMsg, sizeof(httpMsg), 0);
 
   char buffer[2048];
-  recvFromSocket(socketFD, buffer, sizeof(buffer) - 1, 0);
+  recvSocket(socketFD, buffer, sizeof(buffer) - 1, 0);
 
   printf("%s\n", buffer);
   removeIPV4Addr(address);

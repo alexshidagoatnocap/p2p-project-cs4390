@@ -21,10 +21,10 @@ void removeIPV4Addr(SocketAddress *addr);
 
 int32_t connectToSocket(int32_t sockfd, const SocketAddress *address);
 
-size_t sendToSocket(int32_t sockfd, const char *buffer, uint32_t len,
-                    int32_t flags);
+size_t sendSocket(int32_t sockfd, const char *buffer, uint32_t len,
+                  int32_t flags);
 
-size_t recvFromSocket(int32_t sockfd, const char *buffer, uint32_t len,
-                      int32_t flags);
+size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len,
+                  int32_t flags);
 
 void closeSocket(int32_t sockfd);
