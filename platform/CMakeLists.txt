@@ -8,8 +8,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
   message(STATUS "Windows Detected. Including WinSock API.")
   set(PLATFORM_API "WINDOWS_API" CACHE INTERNAL "")
-  add_library(linux_api_lib
+  add_library(windows_api_lib
     STATIC
-    linux_api.c
+    windows_api.c
   )
 endif()

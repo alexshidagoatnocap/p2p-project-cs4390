@@ -44,14 +44,14 @@ int32_t connectToSocket(int32_t sockfd, const SocketAddress *address) {
   return connect(sockfd, castAddr, address->length);
 }
 
-size_t sendToSocket(int32_t sockfd, const char *buffer, uint32_t len,
-                    int32_t flags) {
+size_t sendSocket(int32_t sockfd, const char *buffer, uint32_t len,
+                  int32_t flags) {
   size_t status = send(sockfd, (void *)buffer, len, flags);
   return status;
 }
 
-size_t recvFromSocket(int32_t sockfd, const char *buffer, uint32_t len,
-                      int32_t flags) {
+size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len,
+                  int32_t flags) {
   size_t status = recv(sockfd, (void *)buffer, len, 0);
   return status;
 }
