@@ -27,4 +27,10 @@ size_t sendSocket(int32_t sockfd, const char *buffer, uint32_t len,
 size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len,
                   int32_t flags);
 
+int32_t bindSocket(int32_t sockfd, const SocketAddress *address);
+
+int32_t listenToSocket(int32_t sockfd, int32_t n);
+
+int32_t acceptSocket(int32_t sockfd, SocketAddress *address);
+
 void closeSocket(int32_t sockfd);

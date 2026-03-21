@@ -20,7 +20,7 @@ int main() {
     exit(EXIT_FAILURE);
   }
 
-  void *address = createIPV4Addr("142.250.188.46", 80);
+  SocketAddress *address = createIPV4Addr("127.0.0.1", 2000);
 
   int32_t connectStatus = connectToSocket(socketFD, address);
   if (connectStatus == -1) {
@@ -30,7 +30,7 @@ int main() {
 
   printf("Peer Connection Successful! \n");
 
-  char httpMsg[] = "GET \\ HTTP/1.1\r\nHost:google.com\r\n\r\n";
+  char httpMsg[] = "VIM is better than EMACS";
   sendSocket(socketFD, httpMsg, sizeof(httpMsg), 0);
 
   char buffer[2048];

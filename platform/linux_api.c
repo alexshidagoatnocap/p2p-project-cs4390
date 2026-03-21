@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -24,6 +25,10 @@ SocketAddress *createIPV4Addr(const char *ip, uint16_t port) {
   addr_platform->sin_port = htons(port);
   addr_platform->sin_family = AF_INET;
 
+  if (strlen(ip) == 0) {
+    addr_platform->sin_addr.s_addr = INADDR_ANY;
+  }
+
   inet_pton(addr_platform->sin_family, ip, &addr_platform->sin_addr.s_addr);
 
   SocketAddress *address = malloc(sizeof(SocketAddress));
@@ -40,7 +45,7 @@ void removeIPV4Addr(SocketAddress *addr) {
 }
 
 int32_t connectToSocket(int32_t sockfd, const SocketAddress *address) {
-  struct sockaddr *castAddr = (struct sockaddr *)address->storage;
+  const struct sockaddr *castAddr = (const struct sockaddr *)address->storage;
   return connect(sockfd, castAddr, address->length);
 }
 
@@ -54,6 +59,18 @@ size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len,
                   int32_t flags) {
   size_t status = recv(sockfd, (void *)buffer, len, 0);
   return status;
+}
+
+int32_t bindSocket(int32_t sockfd, const SocketAddress *address) {
+  const struct sockaddr *castAddr = (const struct sockaddr *)address->storage;
+  return bind(sockfd, castAddr, address->length);
+}
+
+int32_t listenToSocket(int32_t sockfd, int32_t n) { return listen(sockfd, n); }
+
+int32_t acceptSocket(int32_t sockfd, SocketAddress *address) {
+  struct sockaddr *castAddr = (struct sockaddr *)address->storage;
+  return accept(sockfd, castAddr, &address->length);
 }
 
 void closeSocket(int32_t sockfd) { close(sockfd); }
