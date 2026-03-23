@@ -12,8 +12,8 @@ void initSocketAPI();
 
 void cleanupSocketAPI();
 
-int32_t createSocketFileDescriptor(uint32_t domain, uint32_t type,
-                                   uint32_t protocol);
+int32_t createSocketFileDescriptor(int32_t domain, int32_t type,
+                                   int32_t protocol);
 
 SocketAddress *createIPV4Addr(const char *ip, uint16_t port);
 
@@ -27,4 +27,12 @@ size_t sendSocket(int32_t sockfd, const char *buffer, uint32_t len,
 size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len,
                   int32_t flags);
 
+int32_t bindSocket(int32_t sockfd, const SocketAddress *address);
+
+int32_t listenToSocket(int32_t sockfd, int32_t n);
+
+int32_t acceptSocket(int32_t sockfd, SocketAddress *address);
+
 void closeSocket(int32_t sockfd);
+
+void shutdownSocketRDWR(int32_t sockfd);

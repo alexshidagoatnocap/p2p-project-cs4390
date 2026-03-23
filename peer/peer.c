@@ -1,8 +1,10 @@
 #include "peer.h"
 #include "api.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -10,7 +12,7 @@
 #include <sys/socket.h>
 #endif
 
-int main() {
+int main(int argc, char *argv[]) {
   initSocketAPI();
   printf("Hello from Peer!\n");
 
@@ -20,23 +22,29 @@ int main() {
     exit(EXIT_FAILURE);
   }
 
-  void *address = createIPV4Addr("142.250.188.46", 80);
+  SocketAddress *address = createIPV4Addr("127.0.0.1", 2000);
 
   int32_t connectStatus = connectToSocket(socketFD, address);
-  if (connectStatus == -1) {
+  if (connectStatus < 0) {
     printf("Peer Connection Failed!\n");
     exit(EXIT_FAILURE);
   }
 
   printf("Peer Connection Successful! \n");
 
-  char httpMsg[] = "GET \\ HTTP/1.1\r\nHost:google.com\r\n\r\n";
-  sendSocket(socketFD, httpMsg, sizeof(httpMsg), 0);
+  char *line = NULL;
+  size_t lineSize;
+  while (true) {
+    size_t charCount = getline(&line, &lineSize, stdin);
+    if (charCount > 0) {
+      sendSocket(socketFD, line, charCount, 0);
+    }
 
-  char buffer[2048];
-  recvSocket(socketFD, buffer, sizeof(buffer) - 1, 0);
+    if (strcmp(line, "exit\n") == 0) {
+      break;
+    }
+  }
 
-  printf("%s\n", buffer);
   removeIPV4Addr(address);
 
   closeSocket(socketFD);
