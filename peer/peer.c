@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
   SocketAddress *address = createIPV4Addr("127.0.0.1", 2000);
 
   int32_t connectStatus = connectToSocket(socketFD, address);
-  if (connectStatus == -1) {
+  if (connectStatus < 0) {
     printf("Peer Connection Failed!\n");
     exit(EXIT_FAILURE);
   }
