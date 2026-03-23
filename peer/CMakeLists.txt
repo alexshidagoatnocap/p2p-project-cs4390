@@ -13,6 +13,7 @@ if(PLATFORM_API STREQUAL "LINUX_API")
   target_link_libraries(peer_app
     PRIVATE
     linux_api_lib
+    protocol_lib
   )
 elseif(PLATFORM_API STREQUAL "WINDOWS_API")
   target_include_directories(peer_app
@@ -22,6 +23,7 @@ elseif(PLATFORM_API STREQUAL "WINDOWS_API")
   target_link_libraries(peer_app
     PRIVATE
     windows_api_lib
+    protocol_lib
   )
 
 endif()
