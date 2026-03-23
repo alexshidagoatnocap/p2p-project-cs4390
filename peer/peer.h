@@ -69,7 +69,7 @@ int download_segment(PeerInfo *peer, FileSegment *segment,
 
 // Record update - update local record and notify tracker
 int update_segment_record(FileDownloadState *state, uint32_t segment_id,
-                          const char *tracker_ip, uint16_t tracker_port);
+                          const char *tracker_ip, uint16_t tracker_port); 
 
 // Tracker communication
 int notify_tracker(const char *tracker_ip, uint16_t tracker_port,
