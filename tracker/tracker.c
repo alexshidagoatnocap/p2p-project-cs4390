@@ -1,5 +1,6 @@
 #include "tracker.h"
 #include "api.h"
+#include "protocol.h"
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -14,6 +15,8 @@
 #include <sys/socket.h>
 #endif
 
+TrackerInfo trackerArray_g[256];
+
 atomic_int activePeers = 0;
 mtx_t peerMutex;
 cnd_t peerCnd;
@@ -23,12 +26,11 @@ static void receiveClientMsgs(int32_t clientSocketFD) {
   while (true) {
     size_t recvMsgSize = recvSocket(clientSocketFD, buffer, sizeof(buffer), 0);
     if (recvMsgSize > 0) {
-      buffer[recvMsgSize] = 0;
+      buffer[strcspn(buffer, "\n")] = 0;
       printf("Response from Peer:\n%s", buffer);
-    }
-
-    if (strcmp(buffer, "exit\n") == 0) {
-      break;
+      if (parseCommand(buffer).Type == CMD_EXIT) {
+        break;
+      };
     }
 
     if (recvMsgSize < 0) {
@@ -86,7 +88,8 @@ int main() {
 
     thrd_t peerID;
     thrd_create(&peerID, peerThread, clientSocketFDptr);
-    thrd_detach(peerID);
+    atomic_fetch_add(&activePeers, 1);
+    thrd_join(peerID, NULL);
   }
 
   shutdownSocketRDWR(serverSocketFD);

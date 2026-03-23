@@ -8,33 +8,34 @@ constexpr uint32_t CHUNK_SIZE = 1024;
 
 typedef enum {
   CMD_UNKNOWN,
-  CMD_LIST,
-  CMD_GET,
   CMD_CREATE_TRACKER,
   CMD_UPDATE_TRACKER,
+  CMD_LIST,
+  CMD_GET,
+  CMD_EXIT,
 } CommandType;
 
-typedef enum { STATUS_OK, STATUS_FAIL, STATUS_FILE_ERROR } CommandStatus;
+typedef enum {
+  STATUS_OK,
+  STATUS_FAIL,
+  STATUS_FILE_ERROR,
+  STATUS_EXIT
+} CommandStatus;
+
+typedef struct {
+  CommandType Type;
+  CommandStatus Status;
+} CommandInfo;
 
 typedef struct {
   char filename[256];
   size_t filesize;
   char description[256];
   char md5Hash[33];
-  char ip[64];
-  uint32_t port;
-} CreateTrackerMailbox;
+} TrackerInfo;
 
-typedef struct {
-  char filename[256];
-  size_t startBytes;
-  size_t endBytes;
-  char ip[64];
-  uint32_t port;
-} UpdateTrackerMailbox;
+extern TrackerInfo trackerArray_g[];
 
-CommandType parseCommand(const char *line);
-CommandStatus createTracker(const char *line, CreateTrackerMailbox *ct);
-CommandStatus updateTracker(const char *line, UpdateTrackerMailbox *ut);
-CommandStatus list();
-CommandStatus get(const char *filename);
+CommandInfo parseCommand(char *line);
+
+typedef CommandStatus (*CommandHandler)(const char *arg);
