@@ -1,16 +1,51 @@
 #include "tracker.h"
 #include "api.h"
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
 #elif __linux__
 #include <sys/socket.h>
 #endif
+
+atomic_int activePeers = 0;
+mtx_t peerMutex;
+cnd_t peerCnd;
+
+static void receiveClientMsgs(int32_t clientSocketFD) {
+  char buffer[2048];
+  while (true) {
+    size_t recvMsgSize = recvSocket(clientSocketFD, buffer, sizeof(buffer), 0);
+    if (recvMsgSize > 0) {
+      buffer[recvMsgSize] = 0;
+      printf("Response from Peer:\n%s", buffer);
+    }
+
+    if (strcmp(buffer, "exit\n") == 0) {
+      break;
+    }
+
+    if (recvMsgSize < 0) {
+      break;
+    }
+  }
+}
+
+static int32_t peerThread(void *arg) {
+  int32_t peerSocketFD = *(int32_t *)arg;
+  free(arg);
+  receiveClientMsgs(peerSocketFD);
+  closeSocket(peerSocketFD);
+
+  atomic_fetch_sub(&activePeers, 1);
+  return 0;
+}
 
 int main() {
   initSocketAPI();
@@ -36,53 +71,27 @@ int main() {
     exit(EXIT_FAILURE);
   }
 
-  // SocketAddress *clientAddress = createIPV4Addr("", 0);
-  // int32_t clientSocketFD = acceptSocket(serverSocketFD, clientAddress);
-
-  AcceptedSocket *clientSocket = acceptIncomingConnection(serverSocketFD);
-
-  char buffer[2048];
   while (true) {
-    size_t recvMsgSize =
-        recvSocket(clientSocket->acceptedFD, buffer, sizeof(buffer), 0);
-    if (recvMsgSize > 0) {
-      buffer[recvMsgSize] = 0;
-      printf("Response from Peer:\n%s", buffer);
+    SocketAddress *clientAddress = createIPV4Addr("", 0);
+    int32_t clientSocketFD = acceptSocket(serverSocketFD, clientAddress);
+    removeIPV4Addr(clientAddress);
+
+    if (clientSocketFD < 0) {
+      printf("Tracker failed to connect to peer.\n");
+      continue;
     }
 
-    if (strcmp(buffer, "exit\n") == 0) {
-      break;
-    }
+    int32_t *clientSocketFDptr = malloc(sizeof(int32_t));
+    *clientSocketFDptr = clientSocketFD;
 
-    if (recvMsgSize < 0) {
-      break;
-    }
+    thrd_t peerID;
+    thrd_create(&peerID, peerThread, clientSocketFDptr);
+    thrd_detach(peerID);
   }
 
-  // closeSocket(clientSocketFD);
   shutdownSocketRDWR(serverSocketFD);
-  // removeIPV4Addr(clientAddress);
   removeIPV4Addr(serverAddress);
 
   cleanupSocketAPI();
   return 0;
-}
-
-AcceptedSocket *acceptIncomingConnection(uint32_t serverSocketFD) {
-  SocketAddress *clientAddress = createIPV4Addr("", 0);
-  int32_t clientSocketFD = acceptSocket(serverSocketFD, clientAddress);
-
-  if (clientSocketFD < 0) {
-    printf("Tracker failed to connect to peer.\n");
-    exit(EXIT_FAILURE);
-  }
-
-  AcceptedSocket *acceptedSocket = malloc(sizeof(AcceptedSocket));
-  acceptedSocket->sockAddr = *clientAddress;
-  acceptedSocket->acceptedFD = clientSocketFD;
-  if (acceptedSocket->acceptedFD < 0) {
-    acceptedSocket->status = SOCKET_ERROR;
-  }
-
-  return acceptedSocket;
 }

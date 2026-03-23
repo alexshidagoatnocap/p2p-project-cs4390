@@ -12,8 +12,8 @@ void initSocketAPI();
 
 void cleanupSocketAPI();
 
-int32_t createSocketFileDescriptor(uint32_t domain, uint32_t type,
-                                   uint32_t protocol);
+int32_t createSocketFileDescriptor(int32_t domain, int32_t type,
+                                   int32_t protocol);
 
 SocketAddress *createIPV4Addr(const char *ip, uint16_t port);
 

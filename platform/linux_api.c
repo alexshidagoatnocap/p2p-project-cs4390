@@ -10,8 +10,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-int32_t createSocketFileDescriptor(uint32_t domain, uint32_t type,
-                                   uint32_t protocol) {
+int32_t createSocketFileDescriptor(int32_t domain, int32_t type,
+                                   int32_t protocol) {
   int32_t sockfd = socket(domain, type, protocol);
   if (sockfd == -1) {
     printf("Socket Creation Failed!\n");
@@ -41,7 +41,9 @@ SocketAddress *createIPV4Addr(const char *ip, uint16_t port) {
 
 void removeIPV4Addr(SocketAddress *addr) {
   free(addr->storage);
+  addr->storage = NULL;
   free(addr);
+  addr = NULL;
 }
 
 int32_t connectToSocket(int32_t sockfd, const SocketAddress *address) {
