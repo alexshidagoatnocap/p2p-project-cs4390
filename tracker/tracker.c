@@ -1,8 +1,10 @@
 #include "tracker.h"
 #include "api.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -36,12 +38,30 @@ int main() {
 
   SocketAddress clientAddress;
   int32_t clientSocketFD = acceptSocket(serverSocketFD, &clientAddress);
+  if (clientSocketFD < 0) {
+    printf("Tracker failed to connect to peer.\n");
+    exit(EXIT_FAILURE);
+  }
 
   char buffer[2048];
-  recvSocket(clientSocketFD, buffer, sizeof(buffer), 0);
-  printf("Response from Peer:\n%s", buffer);
+  while (true) {
+    size_t recvMsgSize = recvSocket(clientSocketFD, buffer, sizeof(buffer), 0);
+    if (recvMsgSize > 0) {
+      buffer[recvMsgSize] = 0;
+      printf("Response from Peer:\n%s", buffer);
+    }
 
-  closeSocket(serverSocketFD);
+    if (strcmp(buffer, "exit\n") == 0) {
+      break;
+    }
+
+    if (recvMsgSize < 0) {
+      break;
+    }
+  }
+
+  closeSocket(clientSocketFD);
+  shutdownSocketRDWR(serverSocketFD);
 
   cleanupSocketAPI();
   return 0;

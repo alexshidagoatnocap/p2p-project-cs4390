@@ -34,3 +34,5 @@ int32_t listenToSocket(int32_t sockfd, int32_t n);
 int32_t acceptSocket(int32_t sockfd, SocketAddress *address);
 
 void closeSocket(int32_t sockfd);
+
+void shutdownSocketRDWR(int32_t sockfd);

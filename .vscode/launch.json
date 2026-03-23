@@ -5,7 +5,7 @@
             "name": "(gdb) Debug Tracker",
             "type": "gdb",
             "request": "launch",
-            "program": "${workspaceFolder}/build_debug/tracker/tracker_app",
+            "program": "${workspaceFolder}/build/tracker/tracker_app",
             "stopAtEntry": true,
             "setupCommands": [
                 {
@@ -15,6 +15,6 @@
                 }
             ],
             "externalConsole": true
-        },
+        }
     ]
 }

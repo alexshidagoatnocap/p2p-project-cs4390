@@ -1,8 +1,10 @@
 #include "peer.h"
 #include "api.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -10,7 +12,7 @@
 #include <sys/socket.h>
 #endif
 
-int main() {
+int main(int argc, char *argv[]) {
   initSocketAPI();
   printf("Hello from Peer!\n");
 
@@ -30,13 +32,19 @@ int main() {
 
   printf("Peer Connection Successful! \n");
 
-  char httpMsg[] = "VIM is better than EMACS";
-  sendSocket(socketFD, httpMsg, sizeof(httpMsg), 0);
+  char *line = NULL;
+  size_t lineSize;
+  while (true) {
+    size_t charCount = getline(&line, &lineSize, stdin);
+    if (charCount > 0) {
+      sendSocket(socketFD, line, charCount, 0);
+    }
 
-  char buffer[2048];
-  recvSocket(socketFD, buffer, sizeof(buffer) - 1, 0);
+    if (strcmp(line, "exit\n") == 0) {
+      break;
+    }
+  }
 
-  printf("%s\n", buffer);
   removeIPV4Addr(address);
 
   closeSocket(socketFD);

@@ -75,6 +75,8 @@ int32_t acceptSocket(int32_t sockfd, SocketAddress *address) {
 
 void closeSocket(int32_t sockfd) { close(sockfd); }
 
+void shutdownSocketRDWR(int32_t sockfd) { shutdown(sockfd, SHUT_RDWR); }
+
 // Stub functions for initializing a socket API, no need to init on linux
 void initSocketAPI() {}
 void cleanupSocketAPI() {}
