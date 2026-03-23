@@ -10,3 +10,5 @@ typedef struct {
   SocketAddress sockAddr;
   SocketStatus status;
 } AcceptedSocket;
+
+AcceptedSocket *acceptIncomingConnection(uint32_t serverSocketFD);
