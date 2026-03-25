@@ -1,0 +1,9 @@
+<REP GET BEGIN>
+Filename: hello.txt
+Filesize: 17
+Description: demo
+MD5: 11111111111111111111111111111111
+# list of peers follows next
+127.0.0.1:5001:0:17:1774416622
+
+<REP GET END 11111111111111111111111111111111>
