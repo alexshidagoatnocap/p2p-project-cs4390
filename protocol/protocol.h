@@ -31,7 +31,7 @@ typedef struct {
 
 typedef struct {
   char ip[16];
-  char port[6];
+  uint16_t port;
   size_t startByte;
   size_t endByte;
   time_t timestamp;
