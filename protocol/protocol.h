@@ -44,6 +44,7 @@ typedef struct {
   char md5Hash[33];
   PeerInfo peers[MAX_PEERS];
   size_t numPeers;
+  size_t trackerId;
 } TrackerInfo;
 
 extern TrackerInfo trackerArray_g[];

@@ -17,8 +17,10 @@
 #endif
 
 TrackerInfo trackerArray_g[256];
+atomic_int numTrackerFiles_g = 0;
 
-atomic_int activePeers = 0;
+atomic_int activePeers_g = 0;
+mtx_t trkMutex;
 mtx_t peerMutex;
 cnd_t peerCnd;
 
@@ -46,7 +48,7 @@ static int32_t peerThread(void *arg) {
   receiveClientMsgs(peerSocketFD);
   closeSocket(peerSocketFD);
 
-  atomic_fetch_sub(&activePeers, 1);
+  atomic_fetch_sub(&activePeers_g, 1);
   return 0;
 }
 
@@ -57,7 +59,7 @@ CommandStatus createTracker(TrackerInfo tr) {
 
   tFile = fopen(tfName, "wx");
   if (tFile == NULL) {
-    printf("Tracker file already exists\n");
+    printf("Tracker file already exists for %s\n", tr.filename);
     return STATUS_FILE_ERROR;
   }
 
@@ -71,25 +73,89 @@ CommandStatus createTracker(TrackerInfo tr) {
             tr.peers[i].startByte, tr.peers[i].endByte, tr.peers[i].timestamp);
   }
 
-  return STATUS_OK;
+  fclose(tFile);
+
+  if (mtx_lock(&trkMutex) == thrd_success) {
+    trackerArray_g[tr.trackerId] = tr;
+    // atomic_fetch_add(&numTrackerFiles_g, 1);
+    mtx_unlock(&trkMutex);
+    return STATUS_OK;
+  }
+
+  return STATUS_FAIL;
 }
 
-static void testCreateTracker() {
+CommandStatus updateTracker(TrackerInfo tr) {
+  FILE *tFile;
+  char tfName[512];
+  snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr.filename);
+  tFile = fopen(tfName, "r+");
+  if (tFile == NULL) {
+    printf("Tracker file does not exist for %s\n", tr.filename);
+    return STATUS_FILE_ERROR;
+    // TODO: Close TCP connection and terminate handler thread
+  }
+
+  fprintf(tFile, "Filename: %s\n", tr.filename);
+  fprintf(tFile, "Filesize: %zu\n", tr.filesize);
+  fprintf(tFile, "Description: %s\n", tr.description);
+  fprintf(tFile, "MD5: %s\n", tr.md5Hash);
+
+  for (size_t i = 0; i < tr.numPeers; ++i) {
+    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr.peers[i].ip, tr.peers[i].port,
+            tr.peers[i].startByte, tr.peers[i].endByte, tr.peers[i].timestamp);
+  }
+
+  fclose(tFile);
+
+  if (mtx_lock(&trkMutex) == thrd_success) {
+    trackerArray_g[tr.trackerId] = tr;
+    // atomic_fetch_add(&numTrackerFiles_g, 1);
+    mtx_unlock(&trkMutex);
+    return STATUS_OK;
+  }
+
+  return STATUS_FAIL;
+}
+
+static void testCreateAndUpdateTracker() {
   TrackerInfo testTr = {.filename = "for-whom-the-bell-tolls.mp3",
                         .filesize = 4000000,
                         .description = "plz lars dont sue me",
                         .md5Hash = "ABADBABE",
                         .numPeers = 1,
+                        .trackerId = 1,
                         .peers[0] = {.ip = "127.0.0.1",
                                      .port = 9001,
                                      .startByte = 0,
                                      .endByte = 20000,
                                      .timestamp = time(NULL)}};
   createTracker(testTr);
-}
+  TrackerInfo testTr2 = {.filename = "for-whom-the-bell-tolls.mp3",
+                         .filesize = 4000000,
+                         .description = "plz lars dont sue me",
+                         .md5Hash = "ABADBABE",
+                         .numPeers = 2,
+                         .trackerId = 1,
+                         .peers[0] = {.ip = "127.0.0.2",
+                                      .port = 9001,
+                                      .startByte = 0,
+                                      .endByte = 20000,
+                                      .timestamp = time(NULL)},
+                         .peers[1] = {.ip = "192.168.1.2",
+                                      .port = 67,
+                                      .startByte = 20001,
+                                      .endByte = 40000,
+                                      .timestamp = time(NULL)}};
+  updateTracker(testTr2);
+};
 
 int main() {
-  testCreateTracker();
+  if (mtx_init(&trkMutex, mtx_plain) != thrd_success) {
+    printf("Tracker Mutex init failed");
+    return 1;
+  }
+  testCreateAndUpdateTracker();
   // initSocketAPI();
   // printf("Hello from Tracker!\n");
   //
