@@ -7,6 +7,7 @@
 constexpr int32_t BUFFER_SIZE = 4096;
 constexpr int32_t CHUNK_SIZE = 1024;
 constexpr int32_t MAX_PEERS = 256;
+constexpr int32_t MAX_TRACKER_FILES = 256;
 
 typedef enum {
   CMD_UNKNOWN,
@@ -25,11 +26,6 @@ typedef enum {
 } CommandStatus;
 
 typedef struct {
-  CommandType Type;
-  CommandStatus Status;
-} CommandInfo;
-
-typedef struct {
   char ip[16];
   uint16_t port;
   size_t startByte;
@@ -42,13 +38,23 @@ typedef struct {
   size_t filesize;
   char description[256];
   char md5Hash[33];
-  PeerInfo peers[MAX_PEERS];
+  PeerInfo Peers[MAX_PEERS];
   size_t numPeers;
   size_t trackerId;
 } TrackerInfo;
 
-extern TrackerInfo trackerArray_g[];
+typedef struct {
+  CommandStatus Status;
+  TrackerInfo *TrackerPtr;
+} CommandOutput;
+
+typedef struct {
+  CommandType Type;
+  CommandOutput Output;
+} CommandInfo;
+
+extern TrackerInfo trackerArray_g[MAX_TRACKER_FILES];
 
 CommandInfo parseCommand(char *line);
 
-typedef CommandStatus (*CommandHandler)(const char *arg);
+typedef CommandOutput (*CommandHandler)(const char *arg);

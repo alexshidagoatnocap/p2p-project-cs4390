@@ -2,33 +2,81 @@
 #include <stdio.h>
 #include <string.h>
 
-static CommandStatus createTrackerHandler(const char *arg) {
+static CommandOutput createTrackerHandler(const char *arg) {
+  /*
+   * Parse the args string based on the requirements in the PDF, populate a
+   * TrackerInfo struct, and store it in trackerArray_g with trackerId being
+   * the index of the array.
+   *
+   * ! USE A MUTEX WHEN UPDATING THE GLOBAL TRACKER ARRAY !
+   *
+   * For the trackerId, increment an ! ATOMIC ! counter that lasts for as long
+   * as the tracker server is running.
+   *
+   * Prefer to use threads.h over POSIX threads.
+   */
+
   /* YOUR CODE BEGINS HERE */
+  CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
   printf("Inside createTracker handler\n");
-  return STATUS_FAIL;
+  return result;
 }
-static CommandStatus updateTrackerHandler(const char *arg) {
+static CommandOutput updateTrackerHandler(const char *arg) {
+  /*
+   * Parse the args string based on the requirements in the PDF, update the
+   * contents of the TrackerInfo struct in the trackerArray_g array based
+   * on its trackerId element.
+   *
+   * ! USE A MUTEX WHEN UPDATING THE GLOBAL TRACKER ARRAY !
+   *
+   * Prefer to use threads.h over POSIX threads.
+   */
+
   /* YOUR CODE BEGINS HERE */
+  CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
   printf("Inside updateTracker handler\n");
-  return STATUS_FAIL;
+  return result;
 }
-static CommandStatus listHandler(const char *arg) {
+static CommandOutput listHandler(const char *arg) {
+  (void)arg;
+  /*
+   * Print out the elements of the global trackerArray_g based on the format
+   * required in the PDF. Also print out the trackerId so the peer user can
+   * request a trackerfile based on id instead of name.
+   *
+   * ! USE A MUTEX WHEN ACCESSING THE GLOBAL TRACKER ARRAY !
+   *
+   * Prefer to use threads.h over POSIX threads.
+   */
+
   /* YOUR CODE BEGINS HERE */
+  CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
   printf("Inside list handler\n");
-  return STATUS_FAIL;
+  return result;
 }
-static CommandStatus getHandler(const char *arg) {
+static CommandOutput getHandler(const char *arg) {
+  /*
+   * Request a tracker file from trackerArray_g, you can either request by
+   * filename or trackerId.
+   *
+   * ! USE A MUTEX WHEN ACCESSING THE GLOBAL TRACKER ARRAY !
+   *
+   * Prefer to use threads.h over POSIX threads.
+   */
   /* YOUR CODE BEGINS HERE */
+  CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
   printf("Inside get handler\n");
-  return STATUS_FAIL;
+  return result;
 }
-static CommandStatus exitHandler(const char *line) {
-  printf("Inside exit handler\n");
-  return STATUS_EXIT;
+static CommandOutput exitHandler(const char *line) {
+  printf("Peer Exited!");
+  CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
+  return result;
 }
-static CommandStatus unknownHandler(const char *line) {
-  printf("Inside unknown handler\n");
-  return STATUS_FAIL;
+static CommandOutput unknownHandler(const char *line) {
+  printf("Unknown Command!\n");
+  CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
+  return result;
 }
 
 static CommandType identifyCommand(char *command) {
@@ -59,7 +107,9 @@ CommandHandler commands[] = {unknownHandler,       createTrackerHandler,
 CommandInfo parseCommand(char *line) {
   char *commandStr = NULL;
   char *beginArgs = NULL;
-  CommandInfo Info = {.Type = CMD_UNKNOWN, .Status = STATUS_FAIL};
+  CommandInfo Info = {.Type = CMD_UNKNOWN,
+                      .Output.Status = STATUS_FAIL,
+                      .Output.TrackerPtr = NULL};
 
   commandStr = strtok_r(line, " ", &beginArgs);
   printf("Parsed Command: %s\n", commandStr);
@@ -69,8 +119,12 @@ CommandInfo parseCommand(char *line) {
   }
 
   CommandType cmd = identifyCommand(commandStr);
+  CommandOutput out = commands[cmd](beginArgs);
   Info.Type = cmd;
-  Info.Status = commands[cmd](beginArgs);
+  Info.Output.Status = out.Status;
+  if (cmd == CMD_GET) {
+    Info.Output.TrackerPtr = out.TrackerPtr;
+  }
 
   return Info;
 }
