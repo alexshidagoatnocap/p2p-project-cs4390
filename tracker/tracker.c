@@ -52,68 +52,72 @@ static int32_t peerThread(void *arg) {
   return 0;
 }
 
-CommandStatus createTracker(TrackerInfo tr) {
+CommandStatus createTrackerFile(size_t trackerId) {
+  TrackerInfo *tr;
+  if (mtx_lock(&trkMutex) != thrd_success) {
+    return STATUS_FAIL;
+  }
+  tr = &trackerArray_g[trackerId];
+  // atomic_fetch_add(&numTrackerFiles_g, 1);
+  mtx_unlock(&trkMutex);
+
   FILE *tFile;
   char tfName[512];
-  snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr.filename);
+  snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr->filename);
 
   tFile = fopen(tfName, "wx");
   if (tFile == NULL) {
-    printf("Tracker file already exists for %s\n", tr.filename);
+    printf("Tracker file already exists for %s\n", tr->filename);
     return STATUS_FILE_ERROR;
   }
 
-  fprintf(tFile, "Filename: %s\n", tr.filename);
-  fprintf(tFile, "Filesize: %zu\n", tr.filesize);
-  fprintf(tFile, "Description: %s\n", tr.description);
-  fprintf(tFile, "MD5: %s\n", tr.md5Hash);
+  fprintf(tFile, "Filename: %s\n", tr->filename);
+  fprintf(tFile, "Filesize: %zu\n", tr->filesize);
+  fprintf(tFile, "Description: %s\n", tr->description);
+  fprintf(tFile, "MD5: %s\n", tr->md5Hash);
 
-  for (size_t i = 0; i < tr.numPeers; ++i) {
-    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr.Peers[i].ip, tr.Peers[i].port,
-            tr.Peers[i].startByte, tr.Peers[i].endByte, tr.Peers[i].timestamp);
+  for (size_t i = 0; i < tr->numPeers; ++i) {
+    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr->Peers[i].ip, tr->Peers[i].port,
+            tr->Peers[i].startByte, tr->Peers[i].endByte,
+            tr->Peers[i].timestamp);
   }
 
   fclose(tFile);
 
-  if (mtx_lock(&trkMutex) == thrd_success) {
-    trackerArray_g[tr.trackerId] = tr;
-    // atomic_fetch_add(&numTrackerFiles_g, 1);
-    mtx_unlock(&trkMutex);
-    return STATUS_OK;
-  }
-
-  return STATUS_FAIL;
+  return STATUS_OK;
 }
 
-CommandStatus updateTracker(TrackerInfo tr) {
+CommandStatus updateTrackerFile(size_t trackerId) {
+  TrackerInfo *tr;
+  if (mtx_lock(&trkMutex) != thrd_success) {
+    return STATUS_FAIL;
+  }
+  tr = &trackerArray_g[trackerId];
+  // atomic_fetch_add(&numTrackerFiles_g, 1);
+  mtx_unlock(&trkMutex);
+
   FILE *tFile;
   char tfName[512];
-  snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr.filename);
+  snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr->filename);
   tFile = fopen(tfName, "r+");
   if (tFile == NULL) {
-    printf("Tracker file does not exist for %s\n", tr.filename);
+    printf("Tracker file does not exist for %s\n", tr->filename);
     return STATUS_FILE_ERROR;
     // TODO: Close TCP connection and terminate handler thread
   }
 
-  fprintf(tFile, "Filename: %s\n", tr.filename);
-  fprintf(tFile, "Filesize: %zu\n", tr.filesize);
-  fprintf(tFile, "Description: %s\n", tr.description);
-  fprintf(tFile, "MD5: %s\n", tr.md5Hash);
+  fprintf(tFile, "Filename: %s\n", tr->filename);
+  fprintf(tFile, "Filesize: %zu\n", tr->filesize);
+  fprintf(tFile, "Description: %s\n", tr->description);
+  fprintf(tFile, "MD5: %s\n", tr->md5Hash);
 
-  for (size_t i = 0; i < tr.numPeers; ++i) {
-    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr.Peers[i].ip, tr.Peers[i].port,
-            tr.Peers[i].startByte, tr.Peers[i].endByte, tr.Peers[i].timestamp);
+  for (size_t i = 0; i < tr->numPeers; ++i) {
+    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr->Peers[i].ip, tr->Peers[i].port,
+            tr->Peers[i].startByte, tr->Peers[i].endByte,
+            tr->Peers[i].timestamp);
   }
 
   fclose(tFile);
-
-  if (mtx_lock(&trkMutex) == thrd_success) {
-    trackerArray_g[tr.trackerId] = tr;
-    // atomic_fetch_add(&numTrackerFiles_g, 1);
-    mtx_unlock(&trkMutex);
-    return STATUS_OK;
-  }
 
   return STATUS_FAIL;
 }
@@ -130,7 +134,9 @@ static void testCreateAndUpdateTracker() {
                                      .startByte = 0,
                                      .endByte = 20000,
                                      .timestamp = time(NULL)}};
-  createTracker(testTr);
+  trackerArray_g[testTr.trackerId] = testTr;
+  createTrackerFile(testTr.trackerId);
+
   TrackerInfo testTr2 = {.filename = "for-whom-the-bell-tolls.mp3",
                          .filesize = 4000000,
                          .description = "plz lars dont sue me",
@@ -147,7 +153,8 @@ static void testCreateAndUpdateTracker() {
                                       .startByte = 20001,
                                       .endByte = 40000,
                                       .timestamp = time(NULL)}};
-  updateTracker(testTr2);
+  trackerArray_g[testTr2.trackerId] = testTr2;
+  updateTrackerFile(testTr2.trackerId);
 };
 
 int main() {
