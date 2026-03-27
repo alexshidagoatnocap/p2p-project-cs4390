@@ -51,13 +51,17 @@ int32_t connectToSocket(int32_t sockfd, const SocketAddress *address) {
   return connect(sockfd, castAddr, address->length);
 }
 
-size_t sendSocket(int32_t sockfd, const char *buffer, uint32_t len,
+uint32_t hostToNetLong(uint32_t hostlong) { return htonl(hostlong); }
+
+uint32_t netToHostLong(uint32_t netlong) { return ntohl(netlong); }
+
+size_t sendSocket(int32_t sockfd, const void *buffer, uint32_t len,
                   int32_t flags) {
   size_t status = send(sockfd, (void *)buffer, len, flags);
   return status;
 }
 
-size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len,
+size_t recvSocket(int32_t sockfd, const void *buffer, uint32_t len,
                   int32_t flags) {
   size_t status = recv(sockfd, (void *)buffer, len, 0);
   return status;

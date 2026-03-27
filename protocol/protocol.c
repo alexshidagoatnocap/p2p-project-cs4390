@@ -1,4 +1,6 @@
 #include "protocol.h"
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -74,7 +76,7 @@ static CommandOutput exitHandler(const char *line) {
   return result;
 }
 static CommandOutput unknownHandler(const char *line) {
-  printf("Unknown Command!\n");
+  perror("Unknown Command!\n");
   CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
   return result;
 }
@@ -114,7 +116,7 @@ CommandInfo parseCommand(char *line) {
   commandStr = strtok_r(line, " ", &beginArgs);
   printf("Parsed Command: %s\n", commandStr);
   if (commandStr == NULL) {
-    printf("No command given.");
+    perror("No command given.");
     return Info;
   }
 

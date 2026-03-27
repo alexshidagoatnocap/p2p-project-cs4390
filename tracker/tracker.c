@@ -59,7 +59,6 @@ CommandStatus createTrackerFile(size_t trackerId) {
   }
   tr = &trackerArray_g[trackerId];
   // atomic_fetch_add(&numTrackerFiles_g, 1);
-  mtx_unlock(&trkMutex);
 
   FILE *tFile;
   char tfName[512];
@@ -68,6 +67,7 @@ CommandStatus createTrackerFile(size_t trackerId) {
   tFile = fopen(tfName, "wx");
   if (tFile == NULL) {
     printf("Tracker file already exists for %s\n", tr->filename);
+    mtx_unlock(&trkMutex);
     return STATUS_FILE_ERROR;
   }
 
@@ -81,6 +81,7 @@ CommandStatus createTrackerFile(size_t trackerId) {
             tr->Peers[i].startByte, tr->Peers[i].endByte,
             tr->Peers[i].timestamp);
   }
+  mtx_unlock(&trkMutex);
 
   fclose(tFile);
 
@@ -94,16 +95,16 @@ CommandStatus updateTrackerFile(size_t trackerId) {
   }
   tr = &trackerArray_g[trackerId];
   // atomic_fetch_add(&numTrackerFiles_g, 1);
-  mtx_unlock(&trkMutex);
 
   FILE *tFile;
   char tfName[512];
   snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr->filename);
   tFile = fopen(tfName, "r+");
   if (tFile == NULL) {
-    printf("Tracker file does not exist for %s\n", tr->filename);
-    return STATUS_FILE_ERROR;
     // TODO: Close TCP connection and terminate handler thread
+    printf("Tracker file does not exist for %s\n", tr->filename);
+    mtx_unlock(&trkMutex);
+    return STATUS_FILE_ERROR;
   }
 
   fprintf(tFile, "Filename: %s\n", tr->filename);
@@ -118,8 +119,57 @@ CommandStatus updateTrackerFile(size_t trackerId) {
   }
 
   fclose(tFile);
+  mtx_unlock(&trkMutex);
 
   return STATUS_FAIL;
+}
+
+static CommandStatus sendTrackerFile(char *tfName, FILE *tFile,
+                                     int32_t peerSockFD) {
+  if (tFile == NULL) {
+    perror("Cannot send file, FP does not exist.");
+    return STATUS_FILE_ERROR;
+  }
+
+  sendSocket(peerSockFD, tfName, TRK_FNAME_SIZE, 0);
+
+  fseek(tFile, 0, SEEK_END);
+  uint32_t tfSize = ftell(tFile);
+  rewind(tFile);
+  uint32_t tfNetSize = hostToNetLong(tfSize);
+  sendSocket(peerSockFD, &tfNetSize, sizeof(tfNetSize), 0);
+
+  char sendBuffer[CHUNK_SIZE];
+  size_t bytesRead = 0;
+  while ((bytesRead = fread(sendBuffer, 1, sizeof(sendBuffer), tFile)) > 0) {
+    if (sendSocket(peerSockFD, sendBuffer, bytesRead, 0) == -1) {
+      perror("Error sending tracker file!");
+      return STATUS_FAIL;
+    }
+  }
+  return STATUS_OK;
+}
+
+CommandStatus getAndSendTrackerInfo(TrackerInfo *tr, int32_t peerSockFD) {
+  if (mtx_lock(&trkMutex) != thrd_success) {
+    return STATUS_FAIL;
+  }
+
+  FILE *tFile;
+  char tfName[TRK_FNAME_SIZE];
+  snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr->filename);
+  tFile = fopen(tfName, "rb");
+  if (tFile == NULL) {
+    printf("Tracker file does not exist for %s\n", tr->filename);
+    mtx_unlock(&trkMutex);
+    return STATUS_FILE_ERROR;
+  }
+
+  sendTrackerFile(tr->filename, tFile, peerSockFD);
+
+  fclose(tFile);
+  mtx_unlock(&trkMutex);
+  return STATUS_OK;
 }
 
 static void testCreateAndUpdateTracker() {
@@ -155,7 +205,7 @@ static void testCreateAndUpdateTracker() {
                                       .timestamp = time(NULL)}};
   trackerArray_g[testTr2.trackerId] = testTr2;
   updateTrackerFile(testTr2.trackerId);
-};
+}
 
 int main() {
   if (mtx_init(&trkMutex, mtx_plain) != thrd_success) {
@@ -197,6 +247,7 @@ int main() {
       continue;
     }
 
+    getAndSendTrackerInfo(&trackerArray_g[1], clientSocketFD);
     int32_t *clientSocketFDptr = malloc(sizeof(int32_t));
     *clientSocketFDptr = clientSocketFD;
 

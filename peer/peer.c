@@ -1,5 +1,6 @@
 #include "peer.h"
 #include "api.h"
+#include "protocol.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,6 +12,33 @@
 #elif __linux__
 #include <sys/socket.h>
 #endif
+
+static CommandStatus recvTrackerFile(int32_t socketFD) {
+  char tfName[TRK_FNAME_SIZE];
+  char tfPath[TRK_FNAME_SIZE];
+  recvSocket(socketFD, tfName, TRK_FNAME_SIZE, 0);
+  snprintf(tfPath, sizeof(tfPath), "peer/trk/%s.trk", tfName);
+
+  uint32_t fileSize;
+  uint32_t fileSizeNet;
+  recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
+  fileSize = netToHostLong(fileSizeNet);
+
+  FILE *tFile = fopen(tfPath, "wb");
+  char fileBuffer[CHUNK_SIZE];
+  uint32_t totalRecv = 0;
+
+  while (totalRecv < fileSize) {
+    size_t bytesRecv = recvSocket(socketFD, fileBuffer, sizeof(fileBuffer), 0);
+    if (bytesRecv <= 0)
+      break;
+    fwrite(fileBuffer, 1, bytesRecv, tFile);
+    totalRecv += bytesRecv;
+  }
+
+  fclose(tFile);
+  return STATUS_OK;
+}
 
 int main(int argc, char *argv[]) {
   initSocketAPI();
@@ -31,6 +59,7 @@ int main(int argc, char *argv[]) {
   }
 
   printf("Peer Connection Successful! \n");
+  recvTrackerFile(socketFD);
 
   char *line = NULL;
   size_t lineSize;

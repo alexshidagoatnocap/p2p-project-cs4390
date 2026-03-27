@@ -2,12 +2,14 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <time.h>
 
 constexpr int32_t BUFFER_SIZE = 4096;
 constexpr int32_t CHUNK_SIZE = 1024;
 constexpr int32_t MAX_PEERS = 256;
 constexpr int32_t MAX_TRACKER_FILES = 256;
+constexpr int32_t TRK_FNAME_SIZE = 512;
 
 typedef enum {
   CMD_UNKNOWN,
