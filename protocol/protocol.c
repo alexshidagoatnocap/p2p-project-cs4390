@@ -7,6 +7,11 @@
 #include <string.h>
 #include <time.h>
 
+// FIX: PUT THESE IN TRACKER! HERE FOR TESTING ONLY
+TrackerInfo trackerArray_g[MAX_TRACKER_FILES];
+atomic_int numTrackerFiles_g = 0;
+mtx_t trkMutex;
+
 static void trimWhitespaceInPlace(char *str) {
   if (str == NULL || *str == '\0') {
     return;
@@ -539,7 +544,7 @@ CommandInfo parseCommand(char *line) {
   CommandInfo info = {.Type = CMD_UNKNOWN,
                       .Output = {.Status = STATUS_FAIL, .TrackerPtr = NULL}};
 
-  stripOptionalAngleBrackets(line);
+  // stripOptionalAngleBrackets(line);
 
   if (line[0] == '\0') {
     printf("parseCommand: empty input\n");

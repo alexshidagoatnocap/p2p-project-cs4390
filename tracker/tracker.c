@@ -16,11 +16,7 @@
 #include <sys/socket.h>
 #endif
 
-TrackerInfo trackerArray_g[MAX_TRACKER_FILES];
-atomic_int numTrackerFiles_g = 0;
-
 atomic_int activePeers_g = 0;
-mtx_t trkMutex;
 mtx_t peerMutex;
 cnd_t peerCnd;
 
@@ -30,10 +26,31 @@ static void receiveClientMsgs(int32_t clientSocketFD) {
     size_t recvMsgSize = recvSocket(clientSocketFD, buffer, sizeof(buffer), 0);
     if (recvMsgSize > 0) {
       buffer[strcspn(buffer, "\n")] = 0;
-      printf("Response from Peer:\n%s", buffer);
-      if (parseCommand(buffer).Type == CMD_EXIT) {
+      // printf("Response from Peer:\n%s", buffer);
+      auto command = parseCommand(buffer);
+      if (command.Output.Status == STATUS_FAIL ||
+          command.Output.Status == STATUS_FILE_ERROR) {
+        printf("Command Failed: %s\n", buffer);
+        continue;
+      }
+
+      if (command.Type == CMD_EXIT) {
         break;
       };
+
+      switch (command.Type) {
+      case CMD_CREATE_TRACKER:
+        createTrackerFile(command.Output.TrackerPtr->trackerId);
+        break;
+      case CMD_UPDATE_TRACKER:
+        updateTrackerFile(command.Output.TrackerPtr->trackerId);
+        break;
+      case CMD_GET:
+        getAndSendTrackerInfo(command.Output.TrackerPtr, clientSocketFD);
+        break;
+      default:
+        break;
+      }
     }
 
     if (recvMsgSize < 0) {
@@ -212,7 +229,7 @@ int main() {
     printf("Tracker Mutex init failed");
     return 1;
   }
-  testCreateAndUpdateTracker();
+  // testCreateAndUpdateTracker();
 
   initSocketAPI();
   printf("Hello from Tracker!\n");
@@ -247,7 +264,7 @@ int main() {
       continue;
     }
 
-    getAndSendTrackerInfo(&trackerArray_g[1], clientSocketFD);
+    // getAndSendTrackerInfo(&trackerArray_g[1], clientSocketFD);
     int32_t *clientSocketFDptr = malloc(sizeof(int32_t));
     *clientSocketFDptr = clientSocketFD;
 

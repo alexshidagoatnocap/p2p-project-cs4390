@@ -59,17 +59,37 @@ int main(int argc, char *argv[]) {
   }
 
   printf("Peer Connection Successful! \n");
-  recvTrackerFile(socketFD);
 
   char *line = NULL;
-  size_t lineSize;
+  size_t lineSize = 0;
   while (true) {
-    size_t charCount = getline(&line, &lineSize, stdin);
+    auto charCount = getline(&line, &lineSize, stdin);
     if (charCount > 0) {
       sendSocket(socketFD, line, charCount, 0);
     }
 
-    if (strcmp(line, "exit\n") == 0) {
+    // FIX: HARAM: THIS PROGRAM CURRENTLY SHARES THE GLOBAL ARRAY WITH THE
+    // TRACKER SERVER. RECV TRACKER SERVER OUTPUT INSTEAD.
+    auto command = parseCommand(line);
+    if (command.Output.Status == STATUS_FAIL ||
+        command.Output.Status == STATUS_FILE_ERROR) {
+      printf("Command Failed: %s\n", line);
+      continue;
+    }
+
+    if (command.Type == CMD_EXIT) {
+      break;
+    };
+
+    switch (command.Type) {
+    case CMD_CREATE_TRACKER:
+      break;
+    case CMD_UPDATE_TRACKER:
+      break;
+    case CMD_GET:
+      recvTrackerFile(socketFD);
+      break;
+    default:
       break;
     }
   }
