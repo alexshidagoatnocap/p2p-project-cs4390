@@ -1,3 +1,4 @@
+// FIX: Decouple this from tracker, make this only do string parsing.
 #include "protocol.h"
 #include <ctype.h>
 #include <stddef.h>
@@ -6,11 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-// FIX: PUT THESE IN TRACKER! HERE FOR TESTING ONLY
-TrackerInfo trackerArray_g[MAX_TRACKER_FILES];
-atomic_int numTrackerFiles_g = 0;
-mtx_t trkMutex;
 
 static void trimWhitespaceInPlace(char *str) {
   if (str == NULL || *str == '\0') {
@@ -181,23 +177,11 @@ static size_t splitTokens(char *buffer, char *tokens[], size_t maxTokens) {
 }
 
 static CommandOutput createTrackerHandler(const char *arg) {
-  /*
-   * Expected general format:
-   * createtracker filename filesize description md5 ip port
-   *
-   * If description contains spaces, this handler supports that by treating:
-   * token[0] = filename
-   * token[1] = filesize
-   * token[last-3] = md5
-   * token[last-2] = ip
-   * token[last-1] = port
-   * description = everything in between
-   */
-
   CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
+  result.outMsg[0] = '\0';
 
   if (arg == NULL) {
-    printf("createtracker: missing arguments\n");
+    snprintf(result.outMsg, BUFFER_SIZE, "createtracker: missing arguments\n");
     return result;
   }
 
@@ -209,7 +193,8 @@ static CommandOutput createTrackerHandler(const char *arg) {
   size_t tokenCount = splitTokens(buffer, tokens, 64);
 
   if (tokenCount < 6) {
-    printf("createtracker: not enough arguments\n");
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "createtracker: not enough arguments\n");
     return result;
   }
 
@@ -220,7 +205,8 @@ static CommandOutput createTrackerHandler(const char *arg) {
   const char *portStr = tokens[tokenCount - 1];
 
   if (!isNumberString(filesizeStr) || !isNumberString(portStr)) {
-    printf("createtracker: filesize/port must be numeric\n");
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "createtracker: filesize/port must be numeric\n");
     return result;
   }
 
@@ -229,8 +215,10 @@ static CommandOutput createTrackerHandler(const char *arg) {
   for (size_t i = 2; i < tokenCount - 3; i++) {
     int written = snprintf(description + descPos, sizeof(description) - descPos,
                            "%s%s", (i == 2 ? "" : " "), tokens[i]);
+
     if (written < 0 || (size_t)written >= sizeof(description) - descPos) {
-      printf("createtracker: description too long\n");
+      snprintf(result.outMsg, BUFFER_SIZE,
+               "createtracker: description too long\n");
       return result;
     }
     descPos += (size_t)written;
@@ -240,17 +228,19 @@ static CommandOutput createTrackerHandler(const char *arg) {
   unsigned long parsedPort = strtoul(portStr, NULL, 10);
 
   if (parsedPort > 65535UL) {
-    printf("createtracker: invalid port\n");
+    snprintf(result.outMsg, BUFFER_SIZE, "createtracker: invalid port\n");
     return result;
   }
 
   if (mtx_lock(&trkMutex) != thrd_success) {
-    printf("createtracker: failed to lock tracker mutex\n");
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "createtracker: failed to lock tracker mutex\n");
     return result;
   }
 
   if (findTrackerIndexByFilenameUnlocked(filename) >= 0) {
-    printf("createtracker: tracker for '%s' already exists\n", filename);
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "createtracker: tracker for '%s' already exists\n", filename);
     mtx_unlock(&trkMutex);
     result.Status = STATUS_FILE_ERROR;
     return result;
@@ -258,7 +248,7 @@ static CommandOutput createTrackerHandler(const char *arg) {
 
   int trackerId = atomic_fetch_add(&numTrackerFiles_g, 1);
   if (trackerId < 0 || trackerId >= MAX_TRACKER_FILES) {
-    printf("createtracker: tracker array full\n");
+    snprintf(result.outMsg, BUFFER_SIZE, "createtracker: tracker array full\n");
     atomic_fetch_sub(&numTrackerFiles_g, 1);
     mtx_unlock(&trkMutex);
     return result;
@@ -268,6 +258,7 @@ static CommandOutput createTrackerHandler(const char *arg) {
   safeStringCopy(tracker.filename, sizeof(tracker.filename), filename);
   safeStringCopy(tracker.description, sizeof(tracker.description), description);
   safeStringCopy(tracker.md5Hash, sizeof(tracker.md5Hash), md5);
+
   tracker.filesize = filesize;
   tracker.numPeers = 1;
   tracker.trackerId = (size_t)trackerId;
@@ -279,27 +270,24 @@ static CommandOutput createTrackerHandler(const char *arg) {
   tracker.Peers[0].timestamp = time(NULL);
 
   trackerArray_g[trackerId] = tracker;
+
   result.Status = STATUS_OK;
   result.TrackerPtr = &trackerArray_g[trackerId];
 
+  snprintf(result.outMsg, BUFFER_SIZE,
+           "createtracker: created trackerId=%d for file '%s'\n", trackerId,
+           filename);
+
   mtx_unlock(&trkMutex);
-
-  printf("createtracker: created trackerId=%d for file '%s'\n", trackerId,
-         filename);
-
   return result;
 }
 
 static CommandOutput updateTrackerHandler(const char *arg) {
-  /*
-   * Expected format:
-   * updatetracker filename startByte endByte ip port
-   */
-
   CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
+  result.outMsg[0] = '\0';
 
   if (arg == NULL) {
-    printf("updatetracker: missing arguments\n");
+    snprintf(result.outMsg, BUFFER_SIZE, "updatetracker: missing arguments\n");
     return result;
   }
 
@@ -311,7 +299,8 @@ static CommandOutput updateTrackerHandler(const char *arg) {
   size_t tokenCount = splitTokens(buffer, tokens, 16);
 
   if (tokenCount != 5) {
-    printf("updatetracker: expected 5 arguments\n");
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "updatetracker: expected 5 arguments\n");
     return result;
   }
 
@@ -323,27 +312,31 @@ static CommandOutput updateTrackerHandler(const char *arg) {
 
   if (!isNumberString(startStr) || !isNumberString(endStr) ||
       !isNumberString(portStr)) {
-    printf("updatetracker: start/end/port must be numeric\n");
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "updatetracker: start/end/port must be numeric\n");
     return result;
   }
 
-  size_t startByte = (size_t)strtoull(startStr, NULL, 10);
-  size_t endByte = (size_t)strtoull(endStr, NULL, 10);
+  size_t startByte = strtoull(startStr, NULL, 10);
+  size_t endByte = strtoull(endStr, NULL, 10);
   unsigned long parsedPort = strtoul(portStr, NULL, 10);
 
   if (parsedPort > 65535UL || startByte > endByte) {
-    printf("updatetracker: invalid range or port\n");
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "updatetracker: invalid range or port\n");
     return result;
   }
 
   if (mtx_lock(&trkMutex) != thrd_success) {
-    printf("updatetracker: failed to lock tracker mutex\n");
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "updatetracker: failed to lock tracker mutex\n");
     return result;
   }
 
   int trackerIdx = findTrackerIndexByFilenameUnlocked(filename);
   if (trackerIdx < 0) {
-    printf("updatetracker: tracker for '%s' not found\n", filename);
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "updatetracker: tracker for '%s' not found\n", filename);
     mtx_unlock(&trkMutex);
     result.Status = STATUS_FILE_ERROR;
     return result;
@@ -352,43 +345,50 @@ static CommandOutput updateTrackerHandler(const char *arg) {
   TrackerInfo *tracker = &trackerArray_g[trackerIdx];
 
   int peerIdx = findPeerIndexUnlocked(tracker, ip, (uint16_t)parsedPort);
+
   if (peerIdx >= 0) {
     tracker->Peers[peerIdx].startByte = startByte;
     tracker->Peers[peerIdx].endByte = endByte;
     tracker->Peers[peerIdx].timestamp = time(NULL);
-    printf("updatetracker: updated existing peer for '%s'\n", filename);
+
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "updatetracker: updated existing peer for '%s'\n", filename);
   } else {
     if (tracker->numPeers >= MAX_PEERS) {
-      printf("updatetracker: max peers reached for '%s'\n", filename);
+      snprintf(result.outMsg, BUFFER_SIZE,
+               "updatetracker: max peers reached for '%s'\n", filename);
       mtx_unlock(&trkMutex);
       return result;
     }
 
     PeerInfo *peer = &tracker->Peers[tracker->numPeers];
     safeStringCopy(peer->ip, sizeof(peer->ip), ip);
+
     peer->port = (uint16_t)parsedPort;
     peer->startByte = startByte;
     peer->endByte = endByte;
     peer->timestamp = time(NULL);
+
     tracker->numPeers++;
 
-    printf("updatetracker: added new peer for '%s'\n", filename);
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "updatetracker: added new peer for '%s'\n", filename);
   }
 
   result.Status = STATUS_OK;
   result.TrackerPtr = tracker;
-  mtx_unlock(&trkMutex);
 
+  mtx_unlock(&trkMutex);
   return result;
 }
 
 static CommandOutput listHandler(const char *arg) {
-  (void)arg;
-
   CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
+  result.outMsg[0] = '\0';
 
   if (mtx_lock(&trkMutex) != thrd_success) {
-    printf("list: failed to lock tracker mutex\n");
+    snprintf(result.outMsg, BUFFER_SIZE,
+             "list: failed to lock tracker mutex\n");
     return result;
   }
 
@@ -404,7 +404,10 @@ static CommandOutput listHandler(const char *arg) {
     }
   }
 
-  printf("REP LIST %zu\n", validCount);
+  size_t len = 0;
+
+  len += snprintf(result.outMsg + len, BUFFER_SIZE - len, "REP LIST %zu\n",
+                  validCount);
 
   size_t displayIndex = 1;
   for (int i = 0; i < trackerCount; i++) {
@@ -412,13 +415,22 @@ static CommandOutput listHandler(const char *arg) {
       continue;
     }
 
-    printf("%zu %s %zu %s [trackerId=%zu]\n", displayIndex,
-           trackerArray_g[i].filename, trackerArray_g[i].filesize,
-           trackerArray_g[i].md5Hash, trackerArray_g[i].trackerId);
+    len += snprintf(result.outMsg + len, BUFFER_SIZE - len,
+                    "%zu %s %zu %s [trackerId=%zu]\n", displayIndex,
+                    trackerArray_g[i].filename, trackerArray_g[i].filesize,
+                    trackerArray_g[i].md5Hash, trackerArray_g[i].trackerId);
+
+    if (len >= BUFFER_SIZE) {
+      // Prevent overflow
+      break;
+    }
+
     displayIndex++;
   }
 
-  printf("REP LIST END\n");
+  if (len < BUFFER_SIZE) {
+    snprintf(result.outMsg + len, BUFFER_SIZE - len, "REP LIST END\n");
+  }
 
   result.Status = STATUS_OK;
   mtx_unlock(&trkMutex);
@@ -426,18 +438,11 @@ static CommandOutput listHandler(const char *arg) {
 }
 
 static CommandOutput getHandler(const char *arg) {
-  /*
-   * Supports:
-   * get filename
-   * get filename.track
-   * get trackerId
-   * GET filename.track
-   */
-
   CommandOutput result = {.Status = STATUS_FAIL, .TrackerPtr = NULL};
+  result.outMsg[0] = '\0';
 
   if (arg == NULL) {
-    printf("get: missing argument\n");
+    snprintf(result.outMsg, BUFFER_SIZE, "get: missing argument\n");
     return result;
   }
 
@@ -446,12 +451,12 @@ static CommandOutput getHandler(const char *arg) {
   trimWhitespaceInPlace(buffer);
 
   if (buffer[0] == '\0') {
-    printf("get: missing argument\n");
+    snprintf(result.outMsg, BUFFER_SIZE, "get: missing argument\n");
     return result;
   }
 
   if (mtx_lock(&trkMutex) != thrd_success) {
-    printf("get: failed to lock tracker mutex\n");
+    snprintf(result.outMsg, BUFFER_SIZE, "get: failed to lock tracker mutex\n");
     return result;
   }
 
@@ -474,30 +479,50 @@ static CommandOutput getHandler(const char *arg) {
   }
 
   if (tracker == NULL) {
-    printf("get: tracker not found for '%s'\n", buffer);
+    snprintf(result.outMsg, BUFFER_SIZE, "get: tracker not found for '%s'\n",
+             buffer);
     mtx_unlock(&trkMutex);
     result.Status = STATUS_FILE_ERROR;
     return result;
   }
 
-  printf("REP GET BEGIN\n");
-  printf("Filename: %s\n", tracker->filename);
-  printf("Filesize: %zu\n", tracker->filesize);
-  printf("Description: %s\n", tracker->description);
-  printf("MD5: %s\n", tracker->md5Hash);
+  size_t len = 0;
+
+  len += snprintf(result.outMsg + len, BUFFER_SIZE - len, "REP GET BEGIN\n");
+
+  len += snprintf(result.outMsg + len, BUFFER_SIZE - len, "Filename: %s\n",
+                  tracker->filename);
+
+  len += snprintf(result.outMsg + len, BUFFER_SIZE - len, "Filesize: %zu\n",
+                  tracker->filesize);
+
+  len += snprintf(result.outMsg + len, BUFFER_SIZE - len, "Description: %s\n",
+                  tracker->description);
+
+  len += snprintf(result.outMsg + len, BUFFER_SIZE - len, "MD5: %s\n",
+                  tracker->md5Hash);
 
   for (size_t i = 0; i < tracker->numPeers; i++) {
-    printf("%s:%u:%zu:%zu:%ld\n", tracker->Peers[i].ip, tracker->Peers[i].port,
-           tracker->Peers[i].startByte, tracker->Peers[i].endByte,
-           (long)tracker->Peers[i].timestamp);
+    len +=
+        snprintf(result.outMsg + len, BUFFER_SIZE - len, "%s:%u:%zu:%zu:%ld\n",
+                 tracker->Peers[i].ip, tracker->Peers[i].port,
+                 tracker->Peers[i].startByte, tracker->Peers[i].endByte,
+                 (long)tracker->Peers[i].timestamp);
+
+    if (len >= BUFFER_SIZE) {
+      break;
+    }
   }
 
-  printf("REP GET END %s\n", tracker->md5Hash);
+  if (len < BUFFER_SIZE) {
+    snprintf(result.outMsg + len, BUFFER_SIZE - len, "REP GET END %s\n",
+             tracker->md5Hash);
+  }
 
   result.Status = STATUS_OK;
   result.TrackerPtr = tracker;
-  mtx_unlock(&trkMutex);
 
+  mtx_unlock(&trkMutex);
   return result;
 }
 
@@ -516,7 +541,7 @@ static CommandOutput unknownHandler(const char *line) {
   return result;
 }
 
-static CommandType identifyCommand(char *command) {
+CommandType identifyCommand(char *command) {
   if (command == NULL) {
     return CMD_UNKNOWN;
   }
@@ -575,11 +600,13 @@ CommandInfo parseCommand(char *line) {
     return info;
   }
 
+  // FIX: Move the command handlers to tracker
   CommandType cmd = identifyCommand(commandStr);
   CommandOutput out = commands[cmd](savePtr);
 
   info.Type = cmd;
   info.Output.Status = out.Status;
+  safeStringCopy(info.Output.outMsg, sizeof(info.Output.outMsg), out.outMsg);
 
   if (cmd == CMD_GET || cmd == CMD_CREATE_TRACKER ||
       cmd == CMD_UPDATE_TRACKER) {

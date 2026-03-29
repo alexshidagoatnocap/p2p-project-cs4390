@@ -16,6 +16,10 @@
 #include <sys/socket.h>
 #endif
 
+TrackerInfo trackerArray_g[MAX_TRACKER_FILES];
+atomic_int numTrackerFiles_g = 0;
+mtx_t trkMutex;
+
 atomic_int activePeers_g = 0;
 mtx_t peerMutex;
 cnd_t peerCnd;
@@ -31,6 +35,7 @@ static void receiveClientMsgs(int32_t clientSocketFD) {
       if (command.Output.Status == STATUS_FAIL ||
           command.Output.Status == STATUS_FILE_ERROR) {
         printf("Command Failed: %s\n", buffer);
+        sendSocket(clientSocketFD, command.Output.outMsg, BUFFER_SIZE, 0);
         continue;
       }
 
@@ -41,13 +46,18 @@ static void receiveClientMsgs(int32_t clientSocketFD) {
       switch (command.Type) {
       case CMD_CREATE_TRACKER:
         createTrackerFile(command.Output.TrackerPtr->trackerId);
+        sendSocket(clientSocketFD, command.Output.outMsg, BUFFER_SIZE, 0);
         break;
       case CMD_UPDATE_TRACKER:
         updateTrackerFile(command.Output.TrackerPtr->trackerId);
+        sendSocket(clientSocketFD, command.Output.outMsg, BUFFER_SIZE, 0);
         break;
       case CMD_GET:
         getAndSendTrackerInfo(command.Output.TrackerPtr, clientSocketFD);
+        sendSocket(clientSocketFD, command.Output.outMsg, BUFFER_SIZE, 0);
         break;
+      case CMD_LIST:
+        sendSocket(clientSocketFD, command.Output.outMsg, BUFFER_SIZE, 0);
       default:
         break;
       }

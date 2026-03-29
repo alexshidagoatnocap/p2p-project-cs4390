@@ -7,7 +7,7 @@
 #include <threads.h>   // mutex (mtx_t)
 #include <time.h>      // timestamps
 
-constexpr int32_t BUFFER_SIZE = 4096;
+constexpr int32_t BUFFER_SIZE = 2048;
 constexpr int32_t CHUNK_SIZE = 1024;
 constexpr int32_t MAX_PEERS = 256;
 constexpr int32_t MAX_TRACKER_FILES = 256;
@@ -55,6 +55,7 @@ typedef struct {
 typedef struct {
   CommandStatus Status;    // success or failure
   TrackerInfo *TrackerPtr; // pointer used mainly for GET
+  char outMsg[BUFFER_SIZE];
 } CommandOutput;
 
 // Full parsed command info
@@ -73,3 +74,5 @@ typedef CommandOutput (*CommandHandler)(const char *arg);
 
 // Main parsing function
 CommandInfo parseCommand(char *line);
+
+CommandType identifyCommand(char *command);

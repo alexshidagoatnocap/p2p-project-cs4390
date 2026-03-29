@@ -61,43 +61,46 @@ int main(int argc, char *argv[]) {
   printf("Peer Connection Successful! \n");
 
   char *line = NULL;
+  char *savePtr = NULL;
   size_t lineSize = 0;
+  char msgFromTrk[BUFFER_SIZE];
   while (true) {
     auto charCount = getline(&line, &lineSize, stdin);
     if (charCount > 0) {
       sendSocket(socketFD, line, charCount, 0);
     }
+    strtok_r(line, " \n", &savePtr);
 
-    // FIX: HARAM: THIS PROGRAM CURRENTLY SHARES THE GLOBAL ARRAY WITH THE
-    // TRACKER SERVER. RECV TRACKER SERVER OUTPUT INSTEAD.
-    auto command = parseCommand(line);
-    if (command.Output.Status == STATUS_FAIL ||
-        command.Output.Status == STATUS_FILE_ERROR) {
-      printf("Command Failed: %s\n", line);
+    if (strcmp(line, "exit") == 0) {
+      break;
+    } else if (strcmp(line, "get") == 0) {
+      // FIX: If get fails, the error message will get sent as a file
+      // decouple tracker from protocol first
+      recvTrackerFile(socketFD);
+      recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+      printf("%s\n", msgFromTrk);
+      continue;
+    } else if (strcmp(line, "createtracker") == 0) {
+      recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+      printf("%s\n", msgFromTrk);
+      continue;
+    } else if (strcmp(line, "updatetracker") == 0) {
+      recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+      printf("%s\n", msgFromTrk);
+      continue;
+    } else if (strcmp(line, "list") == 0) {
+      recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+      printf("%s\n", msgFromTrk);
+      continue;
+    } else {
       continue;
     }
 
-    if (command.Type == CMD_EXIT) {
-      break;
-    };
+    removeIPV4Addr(address);
 
-    switch (command.Type) {
-    case CMD_CREATE_TRACKER:
-      break;
-    case CMD_UPDATE_TRACKER:
-      break;
-    case CMD_GET:
-      recvTrackerFile(socketFD);
-      break;
-    default:
-      break;
-    }
+    closeSocket(socketFD);
+
+    cleanupSocketAPI();
+    return 0;
   }
-
-  removeIPV4Addr(address);
-
-  closeSocket(socketFD);
-
-  cleanupSocketAPI();
-  return 0;
 }
