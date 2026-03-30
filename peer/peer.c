@@ -473,7 +473,7 @@ void print_download_progress(FileDownloadState *state) {
                         ? (100.0 * downloaded / state->num_segments)
                         : 0.0;
 
-  printf("[PROGRESS] File: %s | Segments: %u/%u (%.1f%%) | Bytes: %llu/%u\n",
+  printf("[PROGRESS] File: %s | Segments: %u/%u (%.1f%%) | Bytes: %lu/%u\n",
          state->filename, downloaded, state->num_segments, progress,
          bytes_downloaded, state->total_size);
   pthread_mutex_unlock(&state->lock);
@@ -668,9 +668,9 @@ void cleanupSocketAPI(void) {
   printf("[API] Socket API cleaned up (stub)\n");
 }
 
-int32_t createSocketFileDescriptor(uint32_t domain, uint32_t type,
-                                   uint32_t protocol) {
-  printf("[API] Creating socket (stub) - domain: %u, type: %u, protocol: %u\n",
+int32_t createSocketFileDescriptor(int32_t domain, int32_t type,
+                                   int32_t protocol) {
+  printf("[API] Creating socket (stub) - domain: %d, type: %d, protocol: %d\n",
          domain, type, protocol);
   return 1; /* Return dummy socket fd */
 }
@@ -709,6 +709,11 @@ size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len,
                   int32_t flags) {
   printf("[API] Receiving data (stub) - fd: %d, len: %u\n", sockfd, len);
   return 0; /* No data received */
+}
+
+int32_t bindSocket(int32_t sockfd, const SocketAddress *address) {
+  printf("[API] Binding socket (stub) - fd: %d\n", sockfd);
+  return 0; /* Success */
 }
 
 void closeSocket(int32_t sockfd) {
