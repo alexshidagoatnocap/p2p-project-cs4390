@@ -7,7 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <pthread.h>
+#include <threads.h>
+#include <inttypes.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -17,6 +18,13 @@
 
 // Global State
 static int api_initialized = 0;
+
+static void sleep_seconds(int seconds) {
+  struct timespec ts;
+  ts.tv_sec = seconds;
+  ts.tv_nsec = 0;
+  thrd_sleep(&ts, NULL);
+}
 
 // Initialization Functions
 
@@ -123,18 +131,18 @@ FileSegment *select_next_segment(FileDownloadState *state) {
     return NULL;
   }
 
-  pthread_mutex_lock(&state->lock);
+  mtx_lock(&state->lock);
 
   for (uint32_t i = 0; i < state->num_segments; i++) {
     if (!state->segments[i].downloaded) {
       printf("[PEER] Selected segment %u (offset: %u, size: %u bytes)\n", i,
              state->segments[i].offset, state->segments[i].size);
-      pthread_mutex_unlock(&state->lock);
+      mtx_unlock(&state->lock);
       return &state->segments[i];
     }
   }
 
-  pthread_mutex_unlock(&state->lock);
+  mtx_unlock(&state->lock);
   printf("[PEER] All segments downloaded\n");
   return NULL;
 }
@@ -147,7 +155,7 @@ void add_peer(PeerSwarm *swarm, const char *ip, uint16_t port) {
     return;
   }
 
-  pthread_mutex_lock(&swarm->lock);
+  mtx_lock(&swarm->lock);
 
   PeerInfo *peer = &swarm->peers[swarm->num_peers];
   strncpy(peer->ip_address, ip, MAX_IP_LEN - 1);
@@ -162,7 +170,7 @@ void add_peer(PeerSwarm *swarm, const char *ip, uint16_t port) {
   printf("[PEER] Added peer: %s:%u (Total peers: %u)\n", ip, port,
          swarm->num_peers);
 
-  pthread_mutex_unlock(&swarm->lock);
+  mtx_unlock(&swarm->lock);
 }
 
 // Remove a peer from the swarm
@@ -171,7 +179,7 @@ void remove_peer(PeerSwarm *swarm, uint32_t peer_index) {
     return;
   }
 
-  pthread_mutex_lock(&swarm->lock);
+  mtx_lock(&swarm->lock);
 
   if (peer_index < swarm->num_peers - 1) {
     memmove(&swarm->peers[peer_index], &swarm->peers[peer_index + 1],
@@ -181,7 +189,7 @@ void remove_peer(PeerSwarm *swarm, uint32_t peer_index) {
 
   printf("[PEER] Removed peer (Total peers: %u)\n", swarm->num_peers);
 
-  pthread_mutex_unlock(&swarm->lock);
+  mtx_unlock(&swarm->lock);
 }
 
 // Update the timestamp of a peer
@@ -190,9 +198,9 @@ void update_peer_timestamp(PeerSwarm *swarm, uint32_t peer_index) {
     return;
   }
 
-  pthread_mutex_lock(&swarm->lock);
+  mtx_lock(&swarm->lock);
   swarm->peers[peer_index].last_update = time(NULL);
-  pthread_mutex_unlock(&swarm->lock);
+  mtx_unlock(&swarm->lock);
 }
 
 /* Get the peer with the newest timestamp that has the specified segment
@@ -202,7 +210,7 @@ PeerInfo *select_peer_for_segment(PeerSwarm *swarm, uint32_t segment_id) {
     return NULL;
   }
 
-  pthread_mutex_lock(&swarm->lock);
+  mtx_lock(&swarm->lock);
 
   PeerInfo *selected_peer = NULL;
   time_t newest_time = 0;
@@ -227,7 +235,7 @@ PeerInfo *select_peer_for_segment(PeerSwarm *swarm, uint32_t segment_id) {
     }
   }
 
-  pthread_mutex_unlock(&swarm->lock);
+  mtx_unlock(&swarm->lock);
 
   if (selected_peer) {
     printf("[PEER] Selected peer %s:%u for segment %u (timestamp: %ld)\n",
@@ -293,10 +301,10 @@ int download_segment(PeerInfo *peer, FileSegment *segment,
   removeIPV4Addr(addr);
   closeSocket(sockfd);
 
-  pthread_mutex_lock(&state->lock);
+  mtx_lock(&state->lock);
   segment->downloaded = 1;
   state->record_updated = 1;
-  pthread_mutex_unlock(&state->lock);
+  mtx_unlock(&state->lock);
 
   return 0;
 }
@@ -364,7 +372,7 @@ int update_segment_record(FileDownloadState *state, uint32_t segment_id,
     return -1;
   }
 
-  pthread_mutex_lock(&state->lock);
+  mtx_lock(&state->lock);
 
   // Create record filename
   char record_filename[MAX_FILENAME_LEN + 10];
@@ -375,7 +383,7 @@ int update_segment_record(FileDownloadState *state, uint32_t segment_id,
   FILE *record_file = fopen(record_filename, "a");
   if (!record_file) {
     printf("[ERROR] Failed to open record file: %s\n", record_filename);
-    pthread_mutex_unlock(&state->lock);
+    mtx_unlock(&state->lock);
     return -1;
   }
 
@@ -385,7 +393,7 @@ int update_segment_record(FileDownloadState *state, uint32_t segment_id,
 
   printf("[PEER] Updated record file: %s\n", record_filename);
 
-  pthread_mutex_unlock(&state->lock);
+  mtx_unlock(&state->lock);
 
   // Notify tracker of this update
   return notify_tracker(tracker_ip, tracker_port, state->filename, segment_id);
@@ -457,7 +465,7 @@ void print_download_progress(FileDownloadState *state) {
     return;
   }
 
-  pthread_mutex_lock(&state->lock);
+  mtx_lock(&state->lock);
 
   uint32_t downloaded = 0;
   uint64_t bytes_downloaded = 0;
@@ -473,10 +481,10 @@ void print_download_progress(FileDownloadState *state) {
                         ? (100.0 * downloaded / state->num_segments)
                         : 0.0;
 
-  printf("[PROGRESS] File: %s | Segments: %u/%u (%.1f%%) | Bytes: %lu/%u\n",
+  printf("[PROGRESS] File: %s | Segments: %u/%u (%.1f%%) | Bytes: %" PRIu64 "/%u\n",
          state->filename, downloaded, state->num_segments, progress,
          bytes_downloaded, state->total_size);
-  pthread_mutex_unlock(&state->lock);
+  mtx_unlock(&state->lock);
 }
 
 // Thread Worker Functions
@@ -488,10 +496,10 @@ This thread continuously:
 2. Finds best peer with newest timestamp
 3. Downloads segment from peer
 4. Updates record */
-void *download_thread_worker(void *arg) {
+int download_thread_worker(void *arg) {
   if (!arg) {
     printf("[ERROR] Invalid argument for download_thread_worker\n");
-    return NULL;
+    return -1;
   }
 
   // Cast arguments - expecting a structure with state and swarm
@@ -520,7 +528,7 @@ void *download_thread_worker(void *arg) {
     if (!peer) {
       printf("[WARN] No peer available for segment %u, retrying...\n",
              segment->segment_id);
-      sleep(1);
+      sleep_seconds(1);
       continue;
     }
 
@@ -532,12 +540,12 @@ void *download_thread_worker(void *arg) {
     }
 
     print_download_progress(args->state);
-    sleep(1); // Simulate network delay
+    sleep_seconds(1); // Simulate network delay
   }
 
   printf("[THREAD] Download worker exited\n");
   free(args);
-  return NULL;
+  return 0;
 }
 
 /*
@@ -545,10 +553,10 @@ Tracker sync thread worker function
 This thread periodically contacts the tracker to:
 1. Get updated peer list
 2. Report current status */
-void *tracker_sync_thread_worker(void *arg) {
+int tracker_sync_thread_worker(void *arg) {
   if (!arg) {
     printf("[ERROR] Invalid argument for tracker_sync_thread_worker\n");
-    return NULL;
+    return -1;
   }
 
   typedef struct {
@@ -567,12 +575,12 @@ void *tracker_sync_thread_worker(void *arg) {
   while (!(*args->should_exit)) {
     get_peer_list_from_tracker(args->tracker_ip, args->tracker_port,
                                args->filename, args->swarm);
-    sleep(10);
+    sleep_seconds(10);
   }
 
   printf("[THREAD] Tracker sync worker exited\n");
   free(args);
-  return NULL;
+  return 0;
 }
 
 // Main Program
@@ -591,12 +599,12 @@ int main(int argc, char *argv[]) {
 
   // Initialize download state
   FileDownloadState download_state = {0};
-  pthread_mutex_init(&download_state.lock, NULL);
+  mtx_init(&download_state.lock, mtx_plain);
   create_file_segments(&download_state, filename, segment_size);
 
   // Initialize peer swarm
   PeerSwarm peer_swarm = {0};
-  pthread_mutex_init(&peer_swarm.lock, NULL);
+  mtx_init(&peer_swarm.lock, mtx_plain);
 
   // Get initial peer list from tracker
   printf("\n[MAIN] Retrieving peer list from tracker...\n");
@@ -613,8 +621,7 @@ int main(int argc, char *argv[]) {
   printf("\n[MAIN] Starting download threads...\n");
 
   // Create and launch download threads
-  pthread_t download_thread1, download_thread2;
-  pthread_t tracker_sync_thread;
+  thrd_t download_thread1;
 
   typedef struct {
     FileDownloadState *state;
@@ -630,8 +637,13 @@ int main(int argc, char *argv[]) {
   args1->tracker_ip = tracker_ip;
   args1->tracker_port = tracker_port;
 
-  pthread_create(&download_thread1, NULL, download_thread_worker, args1);
-  pthread_detach(download_thread1);
+  if (thrd_create(&download_thread1, download_thread_worker, args1) ==
+      thrd_success) {
+    thrd_detach(download_thread1);
+  } else {
+    printf("[ERROR] Failed to create download thread\n");
+    free(args1);
+  }
 
   printf("[MAIN] Download threads created\n");
   printf("[MAIN] File segments: %u, Segment size: %u bytes\n",
@@ -640,7 +652,7 @@ int main(int argc, char *argv[]) {
   printf("\n========== Download in Progress ==========\n");
 
   // Let download proceed for a while
-  sleep(30);
+  sleep_seconds(30);
 
   printf("\n========== Final Status ==========\n");
   print_download_progress(&download_state);
@@ -648,8 +660,8 @@ int main(int argc, char *argv[]) {
   // Cleanup
   printf("\n[MAIN] Cleaning up...\n");
   free_file_segments(&download_state);
-  pthread_mutex_destroy(&download_state.lock);
-  pthread_mutex_destroy(&peer_swarm.lock);
+  mtx_destroy(&download_state.lock);
+  mtx_destroy(&peer_swarm.lock);
   peer_cleanup();
 
   printf("========== P2P Peer Program Completed ==========\n");

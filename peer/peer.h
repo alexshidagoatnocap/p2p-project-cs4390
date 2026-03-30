@@ -1,6 +1,6 @@
 #pragma once
 
-#include <pthread.h>
+#include <threads.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <time.h>
@@ -37,14 +37,14 @@ typedef struct {
   FileSegment *segments; // Array of segments
   int record_updated;    // Track if record file needs update
   FILE *file_handle;     // File pointer for writing
-  pthread_mutex_t lock;  // Mutex for thread-safe access
+  mtx_t lock;            // Mutex for thread-safe access
 } FileDownloadState;
 
 // Represents all peers in the swarm
 typedef struct {
   PeerInfo peers[MAX_PEERS];
   uint32_t num_peers;
-  pthread_mutex_t lock; // Mutex for thread-safe access
+  mtx_t lock;          // Mutex for thread-safe access
 } PeerSwarm;
 
 // Function Declarations
@@ -79,8 +79,8 @@ int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
                                const char *filename, PeerSwarm *swarm);
 
 // Thread functions
-void *download_thread_worker(void *arg);
-void *tracker_sync_thread_worker(void *arg);
+int download_thread_worker(void *arg);
+int tracker_sync_thread_worker(void *arg);
 
 // Peer list management
 void add_peer(PeerSwarm *swarm, const char *ip, uint16_t port);
