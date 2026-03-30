@@ -1,12 +1,13 @@
 // Peer system implementation to manage segements and trakcer communication
 #include "peer.h"
-#include "api.h"
+#include "../platform/api.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
