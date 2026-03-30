@@ -23,7 +23,7 @@ typedef enum {
   CMD_EXIT
 } CommandType;
 
-// Enum for command result status
+// Enum for command result status (used by both protocol and tracker)
 typedef enum {
   STATUS_OK = 0,
   STATUS_FAIL,
@@ -51,28 +51,49 @@ typedef struct {
   size_t trackerId;          // unique ID assigned by tracker
 } TrackerInfo;
 
-// Output from a command
+// ============ PARSED COMMAND ARGUMENT STRUCTURES ============
+
+// For CREATE TRACKER: "filename filesize description... md5 ip port"
 typedef struct {
-  CommandStatus Status;    // success or failure
-  TrackerInfo *TrackerPtr; // pointer used mainly for GET
-  char outMsg[BUFFER_SIZE];
-} CommandOutput;
+  char filename[256];
+  size_t filesize;
+  char description[256];
+  char md5[33];
+  char ip[16];
+  uint16_t port;
+} CreateTrackerArgs;
 
-// Full parsed command info
+// For UPDATE TRACKER: "filename startByte endByte ip port"
 typedef struct {
-  CommandType Type;
-  CommandOutput Output;
-} CommandInfo;
+  char filename[256];
+  size_t startByte;
+  size_t endByte;
+  char ip[16];
+  uint16_t port;
+} UpdateTrackerArgs;
 
-// These are defined in tracker.c, but used here
-extern TrackerInfo trackerArray_g[MAX_TRACKER_FILES];
-extern atomic_int numTrackerFiles_g;
-extern mtx_t trkMutex;
+// For GET: "filename_or_id"
+typedef struct {
+  char query[256];
+  int isId;  // 1 if numeric ID, 0 if filename
+} GetTrackerArgs;
 
-// Function pointer type for handlers
-typedef CommandOutput (*CommandHandler)(const char *arg);
+// Union for all command arguments
+typedef union {
+  CreateTrackerArgs createTracker;
+  UpdateTrackerArgs updateTracker;
+  GetTrackerArgs getTracker;
+} CommandArgs;
 
-// Main parsing function
-CommandInfo parseCommand(char *line);
+// Full parsed command result with only arguments (no handler execution)
+typedef struct {
+  CommandType type;
+  CommandArgs args;
+  int parseSuccess;
+  char parseError[256];
+} ParsedCommand;
+
+// Main parsing function - pure string parsing, no handler execution
+ParsedCommand parseCommand(char *line);
 
 CommandType identifyCommand(char *command);

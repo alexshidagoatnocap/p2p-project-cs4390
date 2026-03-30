@@ -40,7 +40,7 @@ static CommandStatus recvTrackerFile(int32_t socketFD) {
   return STATUS_OK;
 }
 
-int main(int argc, char *argv[]) {
+int main() {
   initSocketAPI();
   printf("Hello from Peer!\n");
 
@@ -74,10 +74,16 @@ int main(int argc, char *argv[]) {
     if (strcmp(line, "exit") == 0) {
       break;
     } else if (strcmp(line, "get") == 0) {
-      // FIX: If get fails, the error message will get sent as a file
-      // decouple tracker from protocol first
-      recvTrackerFile(socketFD);
+      // First receive the response to check if GET succeeded
       recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+
+      // Only try to receive file if response indicates success
+      if (strncmp(msgFromTrk, "REP GET BEGIN", 13) == 0) {
+        // GET was successful, receive the file
+        recvTrackerFile(socketFD);
+      }
+
+      // Print the response message
       printf("%s\n", msgFromTrk);
       continue;
     } else if (strcmp(line, "createtracker") == 0) {
