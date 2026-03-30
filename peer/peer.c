@@ -656,3 +656,61 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+
+/* ==================== Socket API Stub Implementations ==================== */
+/* These are stub implementations to allow peer.c to compile standalone */
+
+void initSocketAPI(void) {
+  printf("[API] Socket API initialized (stub)\n");
+}
+
+void cleanupSocketAPI(void) {
+  printf("[API] Socket API cleaned up (stub)\n");
+}
+
+int32_t createSocketFileDescriptor(uint32_t domain, uint32_t type,
+                                   uint32_t protocol) {
+  printf("[API] Creating socket (stub) - domain: %u, type: %u, protocol: %u\n",
+         domain, type, protocol);
+  return 1; /* Return dummy socket fd */
+}
+
+SocketAddress *createIPV4Addr(const char *ip, uint16_t port) {
+  printf("[API] Creating IPv4 address (stub) - IP: %s, port: %u\n", ip, port);
+  SocketAddress *addr = (SocketAddress *)malloc(sizeof(SocketAddress));
+  if (addr) {
+    addr->length = 16; /* IPv4 address length */
+    addr->storage = malloc(16);
+  }
+  return addr;
+}
+
+void removeIPV4Addr(SocketAddress *addr) {
+  if (addr) {
+    if (addr->storage)
+      free(addr->storage);
+    free(addr);
+    printf("[API] Removed IPv4 address (stub)\n");
+  }
+}
+
+int32_t connectToSocket(int32_t sockfd, const SocketAddress *address) {
+  printf("[API] Connecting to socket (stub) - fd: %d\n", sockfd);
+  return 0; /* Success */
+}
+
+size_t sendSocket(int32_t sockfd, const char *buffer, uint32_t len,
+                  int32_t flags) {
+  printf("[API] Sending data (stub) - fd: %d, len: %u\n", sockfd, len);
+  return len; /* Pretend we sent all bytes */
+}
+
+size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len,
+                  int32_t flags) {
+  printf("[API] Receiving data (stub) - fd: %d, len: %u\n", sockfd, len);
+  return 0; /* No data received */
+}
+
+void closeSocket(int32_t sockfd) {
+  printf("[API] Closing socket (stub) - fd: %d\n", sockfd);
+}

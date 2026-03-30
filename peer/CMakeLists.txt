@@ -7,18 +7,9 @@ target_include_directories(peer_app
   ../platform
 )
 
-message(STATUS "Platform API is ${PLATFORM_API}")
+message(STATUS "Building peer_app standalone with stub socket API")
 
-if(PLATFORM_API STREQUAL "LINUX_API")
-  target_link_libraries(peer_app
-    PRIVATE
-    linux_api_lib
-    pthread
-  )
-elseif(PLATFORM_API STREQUAL "WINDOWS_API")
-  target_link_libraries(peer_app
-    PRIVATE
-    windows_api_lib
-    pthread
-  )
-endif()
+target_link_libraries(peer_app
+  PRIVATE
+  pthread
+)
