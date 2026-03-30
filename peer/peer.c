@@ -40,7 +40,7 @@ static CommandStatus recvTrackerFile(int32_t socketFD) {
   return STATUS_OK;
 }
 
-int main(int argc, char *argv[]) {
+int main() {
   initSocketAPI();
   printf("Hello from Peer!\n");
 
@@ -59,25 +59,54 @@ int main(int argc, char *argv[]) {
   }
 
   printf("Peer Connection Successful! \n");
-  recvTrackerFile(socketFD);
 
   char *line = NULL;
-  size_t lineSize;
+  char *savePtr = NULL;
+  size_t lineSize = 0;
+  char msgFromTrk[BUFFER_SIZE];
   while (true) {
-    size_t charCount = getline(&line, &lineSize, stdin);
+    auto charCount = getline(&line, &lineSize, stdin);
     if (charCount > 0) {
       sendSocket(socketFD, line, charCount, 0);
     }
+    strtok_r(line, " \n", &savePtr);
 
-    if (strcmp(line, "exit\n") == 0) {
+    if (strcmp(line, "exit") == 0) {
       break;
+    } else if (strcmp(line, "get") == 0) {
+      // First receive the response to check if GET succeeded
+      recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+
+      // Only try to receive file if response indicates success
+      if (strncmp(msgFromTrk, "REP GET BEGIN", 13) == 0) {
+        // GET was successful, receive the file
+        recvTrackerFile(socketFD);
+      }
+
+      // Print the response message
+      printf("%s\n", msgFromTrk);
+      continue;
+    } else if (strcmp(line, "createtracker") == 0) {
+      recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+      printf("%s\n", msgFromTrk);
+      continue;
+    } else if (strcmp(line, "updatetracker") == 0) {
+      recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+      printf("%s\n", msgFromTrk);
+      continue;
+    } else if (strcmp(line, "list") == 0) {
+      recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+      printf("%s\n", msgFromTrk);
+      continue;
+    } else {
+      continue;
     }
+
+    removeIPV4Addr(address);
+
+    closeSocket(socketFD);
+
+    cleanupSocketAPI();
+    return 0;
   }
-
-  removeIPV4Addr(address);
-
-  closeSocket(socketFD);
-
-  cleanupSocketAPI();
-  return 0;
 }
