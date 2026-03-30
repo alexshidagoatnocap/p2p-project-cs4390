@@ -7,12 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#elif __linux__
-#include <sys/socket.h>
-#endif
-
 static CommandStatus recvTrackerFile(int32_t socketFD) {
   char tfName[TRK_FNAME_SIZE];
   char tfPath[TRK_FNAME_SIZE];
@@ -44,7 +38,7 @@ int main() {
   initSocketAPI();
   printf("Hello from Peer!\n");
 
-  int32_t socketFD = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
+  int32_t socketFD = createIPV4SockStream();
   if (socketFD == -1) {
     printf("Peer Socket Failed!\n");
     exit(EXIT_FAILURE);

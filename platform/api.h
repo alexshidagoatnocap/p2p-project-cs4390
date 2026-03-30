@@ -12,10 +12,9 @@ void initSocketAPI();
 
 void cleanupSocketAPI();
 
-int32_t createSocketFileDescriptor(int32_t domain, int32_t type,
-                                   int32_t protocol);
-
 SocketAddress *createIPV4Addr(const char *ip, uint16_t port);
+
+int32_t createIPV4SockStream();
 
 void removeIPV4Addr(SocketAddress *addr);
 

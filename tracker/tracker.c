@@ -10,12 +10,6 @@
 #include <threads.h>
 #include <time.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#elif __linux__
-#include <sys/socket.h>
-#endif
-
 // ============ STATE GLOBALS ============
 TrackerInfo trackerArray_g[MAX_TRACKER_FILES];
 atomic_int numTrackerFiles_g = 0;
@@ -396,7 +390,7 @@ static void receiveClientMsgs(int32_t clientSocketFD) {
     if (result.status != STATUS_EXIT) {
       // Send response message first (always sent, whether success or failure)
       sendSocket(clientSocketFD, result.outMsg, BUFFER_SIZE, 0);
-      
+
       // Send file only if GET was successful (file exists and was retrieved)
       if (parsed.type == CMD_GET && result.trackerPtr != NULL) {
         getAndSendTrackerInfo(result.trackerPtr, clientSocketFD);
@@ -593,7 +587,7 @@ int main() {
   initSocketAPI();
   printf("Hello from Tracker!\n");
 
-  int32_t serverSocketFD = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
+  int32_t serverSocketFD = createIPV4SockStream();
   if (serverSocketFD == -1) {
     printf("Tracker Socket Failed!\n");
     exit(EXIT_FAILURE);

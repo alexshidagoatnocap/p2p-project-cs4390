@@ -10,13 +10,17 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-int32_t createSocketFileDescriptor(int32_t domain, int32_t type,
-                                   int32_t protocol) {
+static int32_t createSocketFileDescriptor(int32_t domain, int32_t type,
+                                          int32_t protocol) {
   int32_t sockfd = socket(domain, type, protocol);
   if (sockfd == -1) {
     printf("Socket Creation Failed!\n");
   }
   return sockfd;
+}
+
+int32_t createIPV4SockStream() {
+  return createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
 }
 
 SocketAddress *createIPV4Addr(const char *ip, uint16_t port) {
