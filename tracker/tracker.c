@@ -501,7 +501,7 @@ static CommandStatus sendTrackerFile(char *tfName, FILE *tFile,
     return STATUS_FILE_ERROR;
   }
 
-  sendSocket(peerSockFD, tfName, TRK_FNAME_SIZE, 0);
+  sendSocket(peerSockFD, tfName, FNAME_SIZE, 0);
 
   fseek(tFile, 0, SEEK_END);
   uint32_t tfSize = ftell(tFile);
@@ -520,13 +520,63 @@ static CommandStatus sendTrackerFile(char *tfName, FILE *tFile,
   return STATUS_OK;
 }
 
+// TODO: This is a temporary function just to demonstate file transfers for the
+// midterm. The file transfer should be peer-to-peer in the final, and split
+// into 1KB chunks.
+// This will be removed or moved to peer soon.
+
+static CommandStatus getSendFile(TrackerInfo *trk, int32_t peerSockFD) {
+  if (trk == NULL) {
+    return STATUS_FAIL;
+  }
+
+  size_t reqFileSize = trk->filesize;
+  char filename[256];
+  snprintf(filename, sizeof(filename), "tracker/%s", trk->filename);
+
+  FILE *reqFile = fopen(filename, "rb");
+  if (!reqFile) {
+    printf("Requested file does not exist for %s\n", filename);
+    return STATUS_FILE_ERROR;
+  }
+
+  uint32_t reqFileNetSize = hostToNetLong(reqFileSize);
+
+  // Check return values for socket errors
+  if (sendSocket(peerSockFD, trk->filename, sizeof(trk->filename), 0) == -1) {
+    perror("Error sending filename!");
+    fclose(reqFile);
+    return STATUS_FAIL;
+  }
+
+  if (sendSocket(peerSockFD, &reqFileNetSize, sizeof(reqFileNetSize), 0) ==
+      -1) {
+    perror("Error sending file size!");
+    fclose(reqFile);
+    return STATUS_FAIL;
+  }
+
+  char sendBuffer[CHUNK_SIZE];
+  size_t bytesRead = 0;
+  while ((bytesRead = fread(sendBuffer, 1, sizeof(sendBuffer), reqFile)) > 0) {
+    if (sendSocket(peerSockFD, sendBuffer, bytesRead, 0) == -1) {
+      perror("Error sending requested file!");
+      fclose(reqFile);
+      return STATUS_FAIL;
+    }
+  }
+
+  fclose(reqFile);
+  return STATUS_OK;
+}
+
 CommandStatus getAndSendTrackerInfo(TrackerInfo *tr, int32_t peerSockFD) {
   if (mtx_lock(&trkMutex) != thrd_success) {
     return STATUS_FAIL;
   }
 
   FILE *tFile;
-  char tfName[TRK_FNAME_SIZE];
+  char tfName[FNAME_SIZE];
   snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr->filename);
   tFile = fopen(tfName, "rb");
   if (tFile == NULL) {
@@ -538,6 +588,10 @@ CommandStatus getAndSendTrackerInfo(TrackerInfo *tr, int32_t peerSockFD) {
   sendTrackerFile(tr->filename, tFile, peerSockFD);
 
   fclose(tFile);
+
+  // NOTE: Temp function for demontrating file sending over socket.
+  getSendFile(tr, peerSockFD);
+
   mtx_unlock(&trkMutex);
   return STATUS_OK;
 }

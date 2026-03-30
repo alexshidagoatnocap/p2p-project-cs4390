@@ -11,7 +11,7 @@ constexpr int32_t BUFFER_SIZE = 2048;
 constexpr int32_t CHUNK_SIZE = 1024;
 constexpr int32_t MAX_PEERS = 256;
 constexpr int32_t MAX_TRACKER_FILES = 256;
-constexpr int32_t TRK_FNAME_SIZE = 512;
+constexpr int32_t FNAME_SIZE = 256;
 
 // Enum for command types
 typedef enum {
@@ -42,7 +42,7 @@ typedef struct {
 
 // Information about a file being tracked
 typedef struct {
-  char filename[256];        // file name
+  char filename[FNAME_SIZE]; // file name
   size_t filesize;           // file size
   char description[256];     // description (can be multi-word)
   char md5Hash[33];          // MD5 checksum
@@ -75,7 +75,7 @@ typedef struct {
 // For GET: "filename_or_id"
 typedef struct {
   char query[256];
-  int isId;  // 1 if numeric ID, 0 if filename
+  int isId; // 1 if numeric ID, 0 if filename
 } GetTrackerArgs;
 
 // Union for all command arguments

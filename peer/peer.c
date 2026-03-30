@@ -8,9 +8,9 @@
 #include <string.h>
 
 static CommandStatus recvTrackerFile(int32_t socketFD) {
-  char tfName[TRK_FNAME_SIZE];
-  char tfPath[TRK_FNAME_SIZE];
-  recvSocket(socketFD, tfName, TRK_FNAME_SIZE, 0);
+  char tfName[FNAME_SIZE];
+  char tfPath[FNAME_SIZE];
+  recvSocket(socketFD, tfName, FNAME_SIZE, 0);
   snprintf(tfPath, sizeof(tfPath), "peer/trk/%s.trk", tfName);
 
   uint32_t fileSize;
@@ -19,6 +19,32 @@ static CommandStatus recvTrackerFile(int32_t socketFD) {
   fileSize = netToHostLong(fileSizeNet);
 
   FILE *tFile = fopen(tfPath, "wb");
+  char fileBuffer[CHUNK_SIZE];
+  uint32_t totalRecv = 0;
+
+  while (totalRecv < fileSize) {
+    size_t bytesRecv = recvSocket(socketFD, fileBuffer, fileSize, 0);
+    if (bytesRecv <= 0)
+      break;
+    fwrite(fileBuffer, 1, bytesRecv, tFile);
+    totalRecv += bytesRecv;
+  }
+
+  fclose(tFile);
+  return STATUS_OK;
+}
+
+static CommandStatus recvRequestedFile(int32_t socketFD) {
+  char reqFileName[FNAME_SIZE];
+  char reqFilePath[FNAME_SIZE];
+  recvSocket(socketFD, reqFileName, FNAME_SIZE, 0);
+  snprintf(reqFilePath, sizeof(reqFilePath), "peer/%s", reqFileName);
+
+  uint32_t fileSizeNet;
+  recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
+  auto fileSize = netToHostLong(fileSizeNet);
+
+  FILE *tFile = fopen(reqFilePath, "wb");
   char fileBuffer[CHUNK_SIZE];
   uint32_t totalRecv = 0;
 
@@ -75,6 +101,7 @@ int main() {
       if (strncmp(msgFromTrk, "REP GET BEGIN", 13) == 0) {
         // GET was successful, receive the file
         recvTrackerFile(socketFD);
+        recvRequestedFile(socketFD);
       }
 
       // Print the response message
