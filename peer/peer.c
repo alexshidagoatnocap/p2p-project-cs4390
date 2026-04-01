@@ -34,7 +34,7 @@ void peer_init(void) {
     initSocketAPI();
     api_initialized = 1;
   }
-  printf("[PEER] Peer module initialized\n");
+  printf("Peer module initialized\n");
 }
 
 //Clean up peer module resources
@@ -44,7 +44,7 @@ void peer_cleanup(void) {
     cleanupSocketAPI();
     api_initialized = 0;
   }
-  printf("[PEER] Peer module cleaned up\n");
+  printf("Peer module cleaned up\n");
 }
 
 //File Segment Management
@@ -59,7 +59,7 @@ uint32_t calculate_num_segments(uint32_t file_size, uint32_t segment_size) {
 Divides file into segments of specified size */
 void create_file_segments(FileDownloadState *state, const char *filename, uint32_t segment_size) {
   if (!state || !filename || segment_size == 0) {
-    printf("[ERROR] Invalid parameters for create_file_segments\n");
+    printf("Invalid parameters for create_file_segments\n");
     return;
   }
 
@@ -70,7 +70,7 @@ void create_file_segments(FileDownloadState *state, const char *filename, uint32
   //Get file size
   FILE *file = fopen(filename, "rb");
   if (!file) {
-    printf("[ERROR] Cannot open file: %s\n", filename);
+    printf("Cannot open file: %s\n", filename);
     return;
   }
 
@@ -82,7 +82,7 @@ void create_file_segments(FileDownloadState *state, const char *filename, uint32
   state->num_segments = calculate_num_segments(state->total_size, segment_size);
 
   if (state->num_segments > MAX_SEGMENTS) {
-    printf("[ERROR] Too many segments: %u > %u\n", state->num_segments, MAX_SEGMENTS);
+    printf("Too many segments: %u > %u\n", state->num_segments, MAX_SEGMENTS);
     state->num_segments = 0;
     return;
   }
@@ -91,7 +91,7 @@ void create_file_segments(FileDownloadState *state, const char *filename, uint32
   state->segments =
       (FileSegment *)malloc(state->num_segments * sizeof(FileSegment));
   if (!state->segments) {
-    printf("[ERROR] Failed to allocate memory for segments\n");
+    printf("Failed to allocate memory for segments\n");
     state->num_segments = 0;
     return;
   }
@@ -107,7 +107,7 @@ void create_file_segments(FileDownloadState *state, const char *filename, uint32
     state->segments[i].downloaded = 0;
   }
 
-  printf("[PEER] Created %u segments of size %u bytes for file: %s\n", state->num_segments, segment_size, filename);
+  printf("Created %u segments of size %u bytes for file: %s\n", state->num_segments, segment_size, filename);
 }
 
 //Free allocated segment memory
@@ -132,14 +132,14 @@ FileSegment *select_next_segment(FileDownloadState *state) {
 
   for (uint32_t i = 0; i < state->num_segments; i++) {
     if (!state->segments[i].downloaded) {
-      printf("[PEER] Selected segment %u (offset: %u, size: %u bytes)\n", i, state->segments[i].offset, state->segments[i].size);
+      printf("Selected segment %u (offset: %u, size: %u bytes)\n", i, state->segments[i].offset, state->segments[i].size);
       mtx_unlock(&state->lock);
       return &state->segments[i];
     }
   }
 
   mtx_unlock(&state->lock);
-  printf("[PEER] All segments downloaded\n");
+  printf("All segments downloaded\n");
   return NULL;
 }
 
@@ -163,7 +163,7 @@ void add_peer(PeerSwarm *swarm, const char *ip, uint16_t port) {
 
   swarm->num_peers++;
 
-  printf("[PEER] Added peer: %s:%u (Total peers: %u)\n", ip, port, swarm->num_peers);
+  printf("Added peer: %s:%u (Total peers: %u)\n", ip, port, swarm->num_peers);
 
   mtx_unlock(&swarm->lock);
 }
@@ -182,7 +182,7 @@ void remove_peer(PeerSwarm *swarm, uint32_t peer_index) {
   }
   swarm->num_peers--;
 
-  printf("[PEER] Removed peer (Total peers: %u)\n", swarm->num_peers);
+  printf("Number of peers removed %u\n", swarm->num_peers);
 
   mtx_unlock(&swarm->lock);
 }
@@ -233,7 +233,7 @@ PeerInfo *select_peer_for_segment(PeerSwarm *swarm, uint32_t segment_id) {
   mtx_unlock(&swarm->lock);
 
   if (selected_peer) {
-    printf("[PEER] Selected peer %s:%u for segment %u (timestamp: %ld)\n",
+    printf("Selected peer %s:%u for segment %u at %ld\n",
            selected_peer->ip_address, selected_peer->port, segment_id, selected_peer->last_update);
   }
 
@@ -253,11 +253,11 @@ network transfer with error handling, retries, etc. */
 int download_segment(PeerInfo *peer, FileSegment *segment,
                      FileDownloadState *state) {
   if (!peer || !segment || !state) {
-    printf("[ERROR] Invalid parameters for download_segment\n");
+    printf("Invalid parameters for download_segment\n");
     return -1;
   }
 
-  printf("[PEER] Starting download of segment %u from peer %s:%u\n", segment->segment_id, peer->ip_address, peer->port);
+  printf("Starting download of segment %u from peer %s:%u\n", segment->segment_id, peer->ip_address, peer->port);
 
   /* In a real implementation, this would:
   - Create socket connection to peer
@@ -268,25 +268,25 @@ int download_segment(PeerInfo *peer, FileSegment *segment,
 
   int32_t sockfd = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
   if (sockfd == -1) {
-    printf("[ERROR] Failed to create socket for segment %u\n", segment->segment_id);
+    printf("Failed to create socket for segment %u\n", segment->segment_id);
     return -1;
   }
 
   SocketAddress *addr = createIPV4Addr(peer->ip_address, peer->port);
   if (!addr) {
-    printf("[ERROR] Failed to create address for peer\n");
+    printf("Failed to create address for peer\n");
     closeSocket(sockfd);
     return -1;
   }
 
   if (connectToSocket(sockfd, addr) == -1) {
-    printf("[WARN] Failed to connect to peer %s:%u\n", peer->ip_address, peer->port);
+    printf("Failed to connect to peer %s:%u\n", peer->ip_address, peer->port);
     removeIPV4Addr(addr);
     closeSocket(sockfd);
     return -1;
   }
 
-  printf("[PEER] Successfully downloaded segment %u\n", segment->segment_id);
+  printf("Successful segment download %u\n", segment->segment_id);
 
   removeIPV4Addr(addr);
   closeSocket(sockfd);
@@ -306,27 +306,27 @@ This updates the tracker's knowledge of what segments this peer has */
 int notify_tracker(const char *tracker_ip, uint16_t tracker_port,
                    const char *filename, uint32_t segment_id) {
   if (!tracker_ip || !filename) {
-    printf("[ERROR] Invalid parameters for notify_tracker\n");
+    printf("Invalid parameters for notify_tracker\n");
     return -1;
   }
 
-  printf("[PEER] Notifying tracker of segment %u for file %s\n", segment_id, filename);
+  printf("Notifying tracker of segment %u for file %s\n", segment_id, filename);
 
   int32_t sockfd = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
   if (sockfd == -1) {
-    printf("[ERROR] Failed to create socket for tracker notification\n");
+    printf("Failed to create socket for tracker notification\n");
     return -1;
   }
 
   SocketAddress *addr = createIPV4Addr(tracker_ip, tracker_port);
   if (!addr) {
-    printf("[ERROR] Failed to create tracker address\n");
+    printf("Failed to create tracker address\n");
     closeSocket(sockfd);
     return -1;
   }
 
   if (connectToSocket(sockfd, addr) == -1) {
-    printf("[ERROR] Failed to connect tracker at %s:%u\n", tracker_ip, tracker_port);
+    printf("Failed to connect tracker at %s:%u\n", tracker_ip, tracker_port);
     removeIPV4Addr(addr);
     closeSocket(sockfd);
     return -1;
@@ -338,13 +338,13 @@ int notify_tracker(const char *tracker_ip, uint16_t tracker_port,
   snprintf(message, sizeof(message), "%s:%u", filename, segment_id);
 
   if (sendSocket(sockfd, message, strlen(message), 0) == -1) {
-    printf("[ERROR] Failed to send notification to tracker\n");
+    printf("Failed to send notification to tracker\n");
     removeIPV4Addr(addr);
     closeSocket(sockfd);
     return -1;
   }
 
-  printf("[PEER] Tracker notified of segment %u\n", segment_id);
+  printf("Tracker notified of segment %u\n", segment_id);
 
   removeIPV4Addr(addr);
   closeSocket(sockfd);
@@ -356,7 +356,7 @@ Write a record file indicating which segments have been downloaded */
 int update_segment_record(FileDownloadState *state, uint32_t segment_id,
                           const char *tracker_ip, uint16_t tracker_port) {
   if (!state || !tracker_ip) {
-    printf("[ERROR] Invalid parameters for update_segment_record\n");
+    printf("Invalid parameters for update_segment_record\n");
     return -1;
   }
 
@@ -369,7 +369,7 @@ int update_segment_record(FileDownloadState *state, uint32_t segment_id,
   //Append segment ID to record file
   FILE *record_file = fopen(record_filename, "a");
   if (!record_file) {
-    printf("[ERROR] Failed to open record file: %s\n", record_filename);
+    printf("Failed to open record file: %s\n", record_filename);
     mtx_unlock(&state->lock);
     return -1;
   }
@@ -378,7 +378,7 @@ int update_segment_record(FileDownloadState *state, uint32_t segment_id,
           time(NULL));
   fclose(record_file);
 
-  printf("[PEER] Updated record file: %s\n", record_filename);
+  printf("Updated record file: %s\n", record_filename);
 
   mtx_unlock(&state->lock);
 
@@ -391,27 +391,27 @@ Populates the peer swarm with peers returned by tracker */
 int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
                                const char *filename, PeerSwarm *swarm) {
   if (!tracker_ip || !filename || !swarm) {
-    printf("[ERROR] Invalid parameters for get_peer_list_from_tracker\n");
+    printf("Invalid parameters for get_peer_list_from_tracker\n");
     return -1;
   }
 
-  printf("[PEER] Requesting peer list from tracker for file: %s\n", filename);
+  printf("Requesting peer list from tracker for file: %s\n", filename);
 
   int32_t sockfd = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
   if (sockfd == -1) {
-    printf("[ERROR] Failed to create socket for peer list request\n");
+    printf("Failed to create socket for peer list request\n");
     return -1;
   }
 
   SocketAddress *addr = createIPV4Addr(tracker_ip, tracker_port);
   if (!addr) {
-    printf("[ERROR] Failed to create tracker address\n");
+    printf("Failed to create tracker address\n");
     closeSocket(sockfd);
     return -1;
   }
 
   if (connectToSocket(sockfd, addr) == -1) {
-    printf("[ERROR] Failed to connect tracker\n");
+    printf("Failed to connect tracker\n");
     removeIPV4Addr(addr);
     closeSocket(sockfd);
     return -1;
@@ -422,7 +422,7 @@ int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
   snprintf(request, sizeof(request), "LIST:%s", filename);
 
   if (sendSocket(sockfd, request, strlen(request), 0) == -1) {
-    printf("[ERROR] Failed to send peer list request\n");
+    printf("Failed to send peer list request\n");
     removeIPV4Addr(addr);
     closeSocket(sockfd);
     return -1;
@@ -435,7 +435,7 @@ int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
 
   if (bytes_received > 0) {
     buffer[bytes_received] = '\0';
-    printf("[PEER] Received peer list:\n%s\n", buffer);
+    printf("Received peer list:\n%s\n", buffer);
     //TODO: Parse buffer and add peers to swarm
   }
 
@@ -466,7 +466,7 @@ void print_download_progress(FileDownloadState *state) {
 
   double progress = (state->num_segments > 0) ? (100.0 * downloaded / state->num_segments) : 0.0;
 
-  printf("[PROGRESS] File: %s | Segments: %u/%u (%.1f%%) | Bytes: %" PRIu64 "/%u\n",
+  printf("File progress: %s | Segments: %u/%u (%.1f%%) | Bytes: %" PRIu64 "/%u\n",
          state->filename, downloaded, state->num_segments, progress, bytes_downloaded, state->total_size);
   mtx_unlock(&state->lock);
 }
@@ -482,7 +482,7 @@ This thread continuously:
 - Updates record */
 int download_thread_worker(void *arg) {
   if (!arg) {
-    printf("[ERROR] Invalid argument for download_thread_worker\n");
+    printf("Invalid argument for download_thread_worker\n");
     return -1;
   }
 
@@ -496,21 +496,21 @@ int download_thread_worker(void *arg) {
 
   DownloadThreadArgs *args = (DownloadThreadArgs *)arg;
 
-  printf("[THREAD] Download worker started\n");
+  printf("Download worker started\n");
 
   //Download loop
   while (1) {
     //Select next segment to download
     FileSegment *segment = select_next_segment(args->state);
     if (!segment) {
-      printf("[THREAD] All segments downloaded, exiting\n");
+      printf("All segments downloaded, exiting program\n");
       break;
     }
 
     //Select peer with newest timestamp for this segment
     PeerInfo *peer = select_peer_for_segment(args->swarm, segment->segment_id);
     if (!peer) {
-      printf("[WARN] No peer available for segment %u, retrying...\n", segment->segment_id);
+      printf("No peer available for segment %u, retrying...\n", segment->segment_id);
       sleep_seconds(1);
       continue;
     }
@@ -525,19 +525,18 @@ int download_thread_worker(void *arg) {
     sleep_seconds(1); //Simulate network delay
   }
 
-  printf("[THREAD] Download worker exited\n");
+  printf("Download worker exited\n");
   free(args);
   return 0;
 }
 
-/*
-Tracker sync thread worker function
+/*Tracker sync thread worker function
 This thread periodically contacts the tracker to:
 1. Get updated peer list
 2. Report current status */
 int tracker_sync_thread_worker(void *arg) {
   if (!arg) {
-    printf("[ERROR] Invalid argument for tracker_sync_thread_worker\n");
+    printf("Invalid argument for tracker_sync_thread_worker\n");
     return -1;
   }
 
@@ -551,7 +550,7 @@ int tracker_sync_thread_worker(void *arg) {
 
   SyncThreadArgs *args = (SyncThreadArgs *)arg;
 
-  printf("[THREAD] Tracker sync worker started\n");
+  printf("Tracker sync worker started\n");
 
   //Sync loop will update every 10 seconds
   while (!(*args->should_exit)) {
@@ -559,7 +558,7 @@ int tracker_sync_thread_worker(void *arg) {
     sleep_seconds(10);
   }
 
-  printf("[THREAD] Tracker sync worker exited\n");
+  printf("Tracker sync worker exited\n");
   free(args);
   return 0;
 }
@@ -587,18 +586,18 @@ int main(int argc, char *argv[]) {
   mtx_init(&peer_swarm.lock, mtx_plain);
 
   //Get initial peer list from tracker
-  printf("\n[MAIN] Retrieving peer list from tracker...\n");
+  printf("\nRetrieving peer list from tracker...\n");
   get_peer_list_from_tracker(tracker_ip, tracker_port, filename, &peer_swarm);
 
   // Add sample peers for demonstration
   if (peer_swarm.num_peers == 0) {
-    printf("[MAIN] No peers returned from tracker, using demo peers\n");
+    printf("No peers returned from tracker, using demo peers\n");
     add_peer(&peer_swarm, "192.168.1.101", 5001);
     add_peer(&peer_swarm, "192.168.1.102", 5002);
     add_peer(&peer_swarm, "192.168.1.103", 5003);
   }
 
-  printf("\n[MAIN] Starting download threads...\n");
+  printf("\nStarting to download threads...\n");
 
   //Create and launch download threads
   thrd_t download_thread1;
@@ -621,12 +620,12 @@ int main(int argc, char *argv[]) {
       thrd_success) {
     thrd_detach(download_thread1);
   } else {
-    printf("[ERROR] Failed to create download thread\n");
+    printf("Failed to create download thread\n");
     free(args1);
   }
 
-  printf("[MAIN] Download threads created\n");
-  printf("[MAIN] File segments: %u, Segment size: %u bytes\n",
+  printf("Download threads created\n");
+  printf("# of File segments: %u, Segment size: %u bytes\n",
          download_state.num_segments, segment_size);
 
   printf("\nDownload in Progress:\n");
@@ -638,7 +637,7 @@ int main(int argc, char *argv[]) {
   print_download_progress(&download_state);
 
   //Cleanup
-  printf("\n[MAIN] Cleaning up..\n");
+  printf("\nCleaning up..\n");
   free_file_segments(&download_state);
   mtx_destroy(&download_state.lock);
   mtx_destroy(&peer_swarm.lock);
@@ -652,20 +651,20 @@ int main(int argc, char *argv[]) {
 //Socket API Stub Implementations for standalone testing
 
 void initSocketAPI(void) {
-  printf("[API] Socket API initialized (stub)\n");
+  printf("Socket API initialized (stub)\n");
 }
 
 void cleanupSocketAPI(void) {
-  printf("[API] Socket API cleaned up (stub)\n");
+  printf("Socket API cleaned up (stub)\n");
 }
 
 int32_t createSocketFileDescriptor(int32_t domain, int32_t type, int32_t protocol) {
-  printf("[API] Creating socket (stub) - domain: %d, type: %d, protocol: %d\n", domain, type, protocol);
+  printf("Creating socket (stub) - domain: %d, type: %d, protocol: %d\n", domain, type, protocol);
   return 1; //Return dummy socket fd
 }
 
 SocketAddress *createIPV4Addr(const char *ip, uint16_t port) {
-  printf("[API] Creating IPv4 address (stub) - IP: %s, port: %u\n", ip, port);
+  printf("Creating IPv4 address (stub) - IP: %s, port: %u\n", ip, port);
   SocketAddress *addr = (SocketAddress *)malloc(sizeof(SocketAddress));
   if (addr) {
     addr->length = 16; //IPv4 address length
@@ -679,30 +678,30 @@ void removeIPV4Addr(SocketAddress *addr) {
     if (addr->storage)
       free(addr->storage);
     free(addr);
-    printf("[API] Removed IPv4 address (stub)\n");
+    printf("Removed IPv4 address (stub)\n");
   }
 }
 
 int32_t connectToSocket(int32_t sockfd, const SocketAddress *address) {
-  printf("[API] Connecting to socket (stub) - fd: %d\n", sockfd);
+  printf("Connecting to socket (stub) - fd: %d\n", sockfd);
   return 0; // Success
 }
 
 size_t sendSocket(int32_t sockfd, const char *buffer, uint32_t len, int32_t flags) {
-  printf("[API] Sending data (stub) - fd: %d, len: %u\n", sockfd, len);
+  printf("Sending data (stub) - fd: %d, len: %u\n", sockfd, len);
   return len; //Pretend we sent all bytes
 }
 
 size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len, int32_t flags) {
-  printf("[API] Receiving data (stub) - fd: %d, len: %u\n", sockfd, len);
+  printf("Receiving data (stub) - fd: %d, len: %u\n", sockfd, len);
   return 0; //No data received
 }
 
 int32_t bindSocket(int32_t sockfd, const SocketAddress *address) {
-  printf("[API] Binding socket (stub) - fd: %d\n", sockfd);
+  printf("Binding socket (stub) - fd: %d\n", sockfd);
   return 0; //Success 
 }
 
 void closeSocket(int32_t sockfd) {
-  printf("[API] Closing socket (stub) - fd: %d\n", sockfd);
+  printf("Closing socket (stub) - fd: %d\n", sockfd);
 }
