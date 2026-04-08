@@ -9,9 +9,7 @@ target_include_directories(peer_app
 
 message(STATUS "Building peer_app standalone with stub socket API")
 
-find_package(Threads REQUIRED)
-
 target_link_libraries(peer_app
   PRIVATE
-  Threads::Threads
+  protocol_lib
 )

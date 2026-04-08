@@ -1,22 +1,16 @@
 // Peer system implementation to manage segements and trakcer communication
 #include "peer.h"
-#include "../platform/api.h"
+#include "api.h"
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <threads.h>
-#include <inttypes.h>
+#include <unistd.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#elif __linux__
-#include <sys/socket.h>
-#endif
-
-//Global State
+// Global State
 static int api_initialized = 0;
 
 static void sleep_seconds(int seconds) {
@@ -26,9 +20,9 @@ static void sleep_seconds(int seconds) {
   thrd_sleep(&ts, NULL);
 }
 
-//Initialization Functions
+// Initialization Functions
 
-//Initialize the peer module and socket API
+// Initialize the peer module and socket API
 void peer_init(void) {
   if (!api_initialized) {
     initSocketAPI();
@@ -37,7 +31,7 @@ void peer_init(void) {
   printf("Peer module initialized\n");
 }
 
-//Clean up peer module resources
+// Clean up peer module resources
 
 void peer_cleanup(void) {
   if (api_initialized) {
@@ -47,8 +41,8 @@ void peer_cleanup(void) {
   printf("Peer module cleaned up\n");
 }
 
-//File Segment Management
-//Calculate the number of segments needed for a file
+// File Segment Management
+// Calculate the number of segments needed for a file
 uint32_t calculate_num_segments(uint32_t file_size, uint32_t segment_size) {
   if (segment_size == 0)
     return 0;
@@ -57,60 +51,63 @@ uint32_t calculate_num_segments(uint32_t file_size, uint32_t segment_size) {
 
 /* Create and initialize file segments for download
 Divides file into segments of specified size */
-void create_file_segments(FileDownloadState *state, const char *filename, uint32_t segment_size) {
+void create_file_segments(FileDownloadState *state, const char *filename,
+                          uint32_t segment_size) {
   if (!state || !filename || segment_size == 0) {
     printf("Invalid parameters for create_file_segments\n");
     return;
+
+    strncpy(state->filename, filename, MAX_FILENAME_LEN - 1);
+    state->filename[MAX_FILENAME_LEN - 1] = '\0';
+    state->segment_size = segment_size;
+
+    // Get file size
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+      printf("Cannot open file: %s\n", filename);
+      return;
+    }
+
+    fseek(file, 0, SEEK_END);
+    state->total_size = ftell(file);
+    fclose(file);
+
+    // Calculate number of segments
+    state->num_segments =
+        calculate_num_segments(state->total_size, segment_size);
+
+    if (state->num_segments > MAX_SEGMENTS) {
+      printf("Too many segments: %u > %u\n", state->num_segments, MAX_SEGMENTS);
+      state->num_segments = 0;
+      return;
+    }
+
+    // Allocate segment array
+    state->segments =
+        (FileSegment *)malloc(state->num_segments * sizeof(FileSegment));
+    if (!state->segments) {
+      printf("Failed to allocate memory for segments\n");
+      state->num_segments = 0;
+      return;
+    }
+
+    // Initialize each segment
+    for (uint32_t i = 0; i < state->num_segments; i++) {
+      state->segments[i].segment_id = i;
+      state->segments[i].offset = i * segment_size;
+      state->segments[i].size =
+          (i == state->num_segments - 1)
+              ? (state->total_size - state->segments[i].offset)
+              : segment_size;
+      state->segments[i].downloaded = 0;
+    }
+
+    printf("Created %u segments of size %u bytes for file: %s\n",
+           state->num_segments, segment_size, filename);
   }
-
-  strncpy(state->filename, filename, MAX_FILENAME_LEN - 1);
-  state->filename[MAX_FILENAME_LEN - 1] = '\0';
-  state->segment_size = segment_size;
-
-  //Get file size
-  FILE *file = fopen(filename, "rb");
-  if (!file) {
-    printf("Cannot open file: %s\n", filename);
-    return;
-  }
-
-  fseek(file, 0, SEEK_END);
-  state->total_size = ftell(file);
-  fclose(file);
-
-  //Calculate number of segments
-  state->num_segments = calculate_num_segments(state->total_size, segment_size);
-
-  if (state->num_segments > MAX_SEGMENTS) {
-    printf("Too many segments: %u > %u\n", state->num_segments, MAX_SEGMENTS);
-    state->num_segments = 0;
-    return;
-  }
-
-  //Allocate segment array
-  state->segments =
-      (FileSegment *)malloc(state->num_segments * sizeof(FileSegment));
-  if (!state->segments) {
-    printf("Failed to allocate memory for segments\n");
-    state->num_segments = 0;
-    return;
-  }
-
-  //Initialize each segment
-  for (uint32_t i = 0; i < state->num_segments; i++) {
-    state->segments[i].segment_id = i;
-    state->segments[i].offset = i * segment_size;
-    state->segments[i].size =
-        (i == state->num_segments - 1)
-            ? (state->total_size - state->segments[i].offset)
-            : segment_size;
-    state->segments[i].downloaded = 0;
-  }
-
-  printf("Created %u segments of size %u bytes for file: %s\n", state->num_segments, segment_size, filename);
 }
 
-//Free allocated segment memory
+// Free allocated segment memory
 void free_file_segments(FileDownloadState *state) {
   if (state && state->segments) {
     free(state->segments);
@@ -119,7 +116,7 @@ void free_file_segments(FileDownloadState *state) {
   }
 }
 
-//Segment Selection
+// Segment Selection
 
 /* Select the next undownloaded segment sequentially
 Returns NULL if all segments downloaded */
@@ -132,20 +129,20 @@ FileSegment *select_next_segment(FileDownloadState *state) {
 
   for (uint32_t i = 0; i < state->num_segments; i++) {
     if (!state->segments[i].downloaded) {
-      printf("Selected segment %u (offset: %u, size: %u bytes)\n", i, state->segments[i].offset, state->segments[i].size);
+      printf("Selected segment %u (offset: %u, size: %u bytes)\n", i,
+             state->segments[i].offset, state->segments[i].size);
       mtx_unlock(&state->lock);
       return &state->segments[i];
     }
   }
-
   mtx_unlock(&state->lock);
   printf("All segments downloaded\n");
   return NULL;
 }
 
-//Peer Management
+// Peer Management
 
-//Add a peer to the swarm
+// Add a peer to the swarm
 void add_peer(PeerSwarm *swarm, const char *ip, uint16_t port) {
   if (!swarm || swarm->num_peers >= MAX_PEERS || !ip) {
     return;
@@ -168,7 +165,7 @@ void add_peer(PeerSwarm *swarm, const char *ip, uint16_t port) {
   mtx_unlock(&swarm->lock);
 }
 
-//Remove a peer from the swarm
+// Remove a peer from the swarm
 void remove_peer(PeerSwarm *swarm, uint32_t peer_index) {
   if (!swarm || peer_index >= swarm->num_peers) {
     return;
@@ -187,7 +184,7 @@ void remove_peer(PeerSwarm *swarm, uint32_t peer_index) {
   mtx_unlock(&swarm->lock);
 }
 
-//Update the timestamp of a peer
+// Update the timestamp of a peer
 void update_peer_timestamp(PeerSwarm *swarm, uint32_t peer_index) {
   if (!swarm || peer_index >= swarm->num_peers) {
     return;
@@ -210,7 +207,7 @@ PeerInfo *select_peer_for_segment(PeerSwarm *swarm, uint32_t segment_id) {
   PeerInfo *selected_peer = NULL;
   time_t newest_time = 0;
 
-  //Find the active peer with the newest timestamp that has this segment
+  // Find the active peer with the newest timestamp that has this segment
   for (uint32_t i = 0; i < swarm->num_peers; i++) {
     PeerInfo *peer = &swarm->peers[i];
 
@@ -218,12 +215,12 @@ PeerInfo *select_peer_for_segment(PeerSwarm *swarm, uint32_t segment_id) {
       continue;
     }
 
-    //Check if peer has this segment
+    // Check if peer has this segment
     if (!(peer->segments_available & (1U << (segment_id % 32)))) {
       continue;
     }
 
-    //Update if this peer has a newer timestamp
+    // Update if this peer has a newer timestamp
     if (peer->last_update > newest_time) {
       newest_time = peer->last_update;
       selected_peer = peer;
@@ -234,14 +231,16 @@ PeerInfo *select_peer_for_segment(PeerSwarm *swarm, uint32_t segment_id) {
 
   if (selected_peer) {
     printf("Selected peer %s:%u for segment %u at %ld\n",
-           selected_peer->ip_address, selected_peer->port, segment_id, selected_peer->last_update);
+           selected_peer->ip_address, selected_peer->port, segment_id,
+           selected_peer->last_update);
   }
 
   return selected_peer;
 }
 
-//Get the peer with newest timestamp (alternative implementation)
-PeerInfo *get_peer_with_newest_timestamp(PeerSwarm *swarm, uint32_t segment_id) {
+// Get the peer with newest timestamp (alternative implementation)
+PeerInfo *get_peer_with_newest_timestamp(PeerSwarm *swarm,
+                                         uint32_t segment_id) {
   return select_peer_for_segment(swarm, segment_id);
 }
 
@@ -257,7 +256,8 @@ int download_segment(PeerInfo *peer, FileSegment *segment,
     return -1;
   }
 
-  printf("Starting download of segment %u from peer %s:%u\n", segment->segment_id, peer->ip_address, peer->port);
+  printf("Starting download of segment %u from peer %s:%u\n",
+         segment->segment_id, peer->ip_address, peer->port);
 
   /* In a real implementation, this would:
   - Create socket connection to peer
@@ -266,7 +266,7 @@ int download_segment(PeerInfo *peer, FileSegment *segment,
   - Write to file at proper offset
   - Handle errors and retries */
 
-  int32_t sockfd = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
+  int32_t sockfd = createIPV4SockStream();
   if (sockfd == -1) {
     printf("Failed to create socket for segment %u\n", segment->segment_id);
     return -1;
@@ -299,7 +299,7 @@ int download_segment(PeerInfo *peer, FileSegment *segment,
   return 0;
 }
 
-//Record Update and Tracker Communication
+// Record Update and Tracker Communication
 
 /*Notify the tracker that a segment has been downloaded
 This updates the tracker's knowledge of what segments this peer has */
@@ -312,7 +312,7 @@ int notify_tracker(const char *tracker_ip, uint16_t tracker_port,
 
   printf("Notifying tracker of segment %u for file %s\n", segment_id, filename);
 
-  int32_t sockfd = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
+  int32_t sockfd = createIPV4SockStream();
   if (sockfd == -1) {
     printf("Failed to create socket for tracker notification\n");
     return -1;
@@ -364,9 +364,10 @@ int update_segment_record(FileDownloadState *state, uint32_t segment_id,
 
   // Create record filename
   char record_filename[MAX_FILENAME_LEN + 10];
-  snprintf(record_filename, sizeof(record_filename), "%s.record", state->filename);
+  snprintf(record_filename, sizeof(record_filename), "%s.record",
+           state->filename);
 
-  //Append segment ID to record file
+  // Append segment ID to record file
   FILE *record_file = fopen(record_filename, "a");
   if (!record_file) {
     printf("Failed to open record file: %s\n", record_filename);
@@ -382,7 +383,7 @@ int update_segment_record(FileDownloadState *state, uint32_t segment_id,
 
   mtx_unlock(&state->lock);
 
-  //Notify tracker of this update
+  // Notify tracker of this update
   return notify_tracker(tracker_ip, tracker_port, state->filename, segment_id);
 }
 
@@ -397,7 +398,7 @@ int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
 
   printf("Requesting peer list from tracker for file: %s\n", filename);
 
-  int32_t sockfd = createSocketFileDescriptor(AF_INET, SOCK_STREAM, 0);
+  int32_t sockfd = createIPV4SockStream();
   if (sockfd == -1) {
     printf("Failed to create socket for peer list request\n");
     return -1;
@@ -417,7 +418,7 @@ int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
     return -1;
   }
 
-  //Send request to tracker for peer list
+  // Send request to tracker for peer list
   char request[MAX_FILENAME_LEN + 10];
   snprintf(request, sizeof(request), "LIST:%s", filename);
 
@@ -436,7 +437,7 @@ int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
   if (bytes_received > 0) {
     buffer[bytes_received] = '\0';
     printf("Received peer list:\n%s\n", buffer);
-    //TODO: Parse buffer and add peers to swarm
+    // TODO: Parse buffer and add peers to swarm
   }
 
   removeIPV4Addr(addr);
@@ -444,9 +445,9 @@ int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
   return 0;
 }
 
-//Utility Functions
+// Utility Functions
 
-//Print download progress
+// Print download progress
 void print_download_progress(FileDownloadState *state) {
   if (!state || !state->segments) {
     return;
@@ -464,10 +465,14 @@ void print_download_progress(FileDownloadState *state) {
     }
   }
 
-  double progress = (state->num_segments > 0) ? (100.0 * downloaded / state->num_segments) : 0.0;
+  double progress = (state->num_segments > 0)
+                        ? (100.0 * downloaded / state->num_segments)
+                        : 0.0;
 
-  printf("File progress: %s | Segments: %u/%u (%.1f%%) | Bytes: %" PRIu64 "/%u\n",
-         state->filename, downloaded, state->num_segments, progress, bytes_downloaded, state->total_size);
+  printf("File progress: %s | Segments: %u/%u (%.1f%%) | Bytes: %" PRIu64
+         "/%u\n",
+         state->filename, downloaded, state->num_segments, progress,
+         bytes_downloaded, state->total_size);
   mtx_unlock(&state->lock);
 }
 
@@ -498,31 +503,33 @@ int download_thread_worker(void *arg) {
 
   printf("Download worker started\n");
 
-  //Download loop
+  // Download loop
   while (1) {
-    //Select next segment to download
+    // Select next segment to download
     FileSegment *segment = select_next_segment(args->state);
     if (!segment) {
       printf("All segments downloaded, exiting program\n");
       break;
     }
 
-    //Select peer with newest timestamp for this segment
+    // Select peer with newest timestamp for this segment
     PeerInfo *peer = select_peer_for_segment(args->swarm, segment->segment_id);
     if (!peer) {
-      printf("No peer available for segment %u, retrying...\n", segment->segment_id);
+      printf("No peer available for segment %u, retrying...\n",
+             segment->segment_id);
       sleep_seconds(1);
       continue;
     }
 
-    //Download the segment
+    // Download the segment
     if (download_segment(peer, segment, args->state) == 0) {
       // Update record and notify tracker
-      update_segment_record(args->state, segment->segment_id, args->tracker_ip, args->tracker_port);
+      update_segment_record(args->state, segment->segment_id, args->tracker_ip,
+                            args->tracker_port);
     }
 
     print_download_progress(args->state);
-    sleep_seconds(1); //Simulate network delay
+    sleep_seconds(1); // Simulate network delay
   }
 
   printf("Download worker exited\n");
@@ -552,9 +559,10 @@ int tracker_sync_thread_worker(void *arg) {
 
   printf("Tracker sync worker started\n");
 
-  //Sync loop will update every 10 seconds
+  // Sync loop will update every 10 seconds
   while (!(*args->should_exit)) {
-    get_peer_list_from_tracker(args->tracker_ip, args->tracker_port, args->filename, args->swarm);
+    get_peer_list_from_tracker(args->tracker_ip, args->tracker_port,
+                               args->filename, args->swarm);
     sleep_seconds(10);
   }
 
@@ -570,22 +578,22 @@ int main(int argc, char *argv[]) {
   // Initialize peer module
   peer_init();
 
-  //Configuration should be read from config file in real implementation
+  // Configuration should be read from config file in real implementation
   const char *tracker_ip = "127.0.0.1";
   uint16_t tracker_port = 3490;
   const char *filename = "largefile.bin";
   uint32_t segment_size = 65536; /* 64KB segments */
 
-  //Initialize download state
+  // Initialize download state
   FileDownloadState download_state = {0};
   mtx_init(&download_state.lock, mtx_plain);
   create_file_segments(&download_state, filename, segment_size);
 
-  //Initialize peer swarm
+  // Initialize peer swarm
   PeerSwarm peer_swarm = {0};
   mtx_init(&peer_swarm.lock, mtx_plain);
 
-  //Get initial peer list from tracker
+  // Get initial peer list from tracker
   printf("\nRetrieving peer list from tracker...\n");
   get_peer_list_from_tracker(tracker_ip, tracker_port, filename, &peer_swarm);
 
@@ -599,7 +607,7 @@ int main(int argc, char *argv[]) {
 
   printf("\nStarting to download threads...\n");
 
-  //Create and launch download threads
+  // Create and launch download threads
   thrd_t download_thread1;
 
   typedef struct {
@@ -609,7 +617,7 @@ int main(int argc, char *argv[]) {
     uint16_t tracker_port;
   } DownloadThreadArgs;
 
-  //Launch download worker threads
+  // Launch download worker threads
   DownloadThreadArgs *args1 = (DownloadThreadArgs *)malloc(sizeof(*args1));
   args1->state = &download_state;
   args1->swarm = &peer_swarm;
@@ -630,13 +638,13 @@ int main(int argc, char *argv[]) {
 
   printf("\nDownload in Progress:\n");
 
-  //Let download proceed for a while
-  sleep_seconds(30);
+  // Let download proceed for a while
+  sleep_seconds(1);
 
   printf("\nFinal Status:\n");
   print_download_progress(&download_state);
 
-  //Cleanup
+  // Cleanup
   printf("\nCleaning up..\n");
   free_file_segments(&download_state);
   mtx_destroy(&download_state.lock);
@@ -648,26 +656,25 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-//Socket API Stub Implementations for standalone testing
+// TODO: Remove when done.
+// Socket API Stub Implementations for standalone testing
 
-void initSocketAPI(void) {
-  printf("Socket API initialized (stub)\n");
-}
+void initSocketAPI(void) { printf("Socket API initialized (stub)\n"); }
 
-void cleanupSocketAPI(void) {
-  printf("Socket API cleaned up (stub)\n");
-}
+void cleanupSocketAPI(void) { printf("Socket API cleaned up (stub)\n"); }
 
-int32_t createSocketFileDescriptor(int32_t domain, int32_t type, int32_t protocol) {
-  printf("Creating socket (stub) - domain: %d, type: %d, protocol: %d\n", domain, type, protocol);
-  return 1; //Return dummy socket fd
+int32_t createSocketFileDescriptor(int32_t domain, int32_t type,
+                                   int32_t protocol) {
+  printf("Creating socket (stub) - domain: %d, type: %d, protocol: %d\n",
+         domain, type, protocol);
+  return 1; // Return dummy socket fd
 }
 
 SocketAddress *createIPV4Addr(const char *ip, uint16_t port) {
   printf("Creating IPv4 address (stub) - IP: %s, port: %u\n", ip, port);
   SocketAddress *addr = (SocketAddress *)malloc(sizeof(SocketAddress));
   if (addr) {
-    addr->length = 16; //IPv4 address length
+    addr->length = 16; // IPv4 address length
     addr->storage = malloc(16);
   }
   return addr;
@@ -687,19 +694,26 @@ int32_t connectToSocket(int32_t sockfd, const SocketAddress *address) {
   return 0; // Success
 }
 
-size_t sendSocket(int32_t sockfd, const char *buffer, uint32_t len, int32_t flags) {
+size_t sendSocket(int32_t sockfd, const void *buffer, uint32_t len,
+                  int32_t flags) {
   printf("Sending data (stub) - fd: %d, len: %u\n", sockfd, len);
-  return len; //Pretend we sent all bytes
+  return len; // Pretend we sent all bytes
 }
 
-size_t recvSocket(int32_t sockfd, const char *buffer, uint32_t len, int32_t flags) {
+size_t recvSocket(int32_t sockfd, const void *buffer, uint32_t len,
+                  int32_t flags) {
   printf("Receiving data (stub) - fd: %d, len: %u\n", sockfd, len);
-  return 0; //No data received
+  return 0; // No data received
 }
 
 int32_t bindSocket(int32_t sockfd, const SocketAddress *address) {
   printf("Binding socket (stub) - fd: %d\n", sockfd);
-  return 0; //Success 
+  return 0; // Success
+}
+
+int32_t createIPV4SockStream() {
+  printf("Creating IPV4 socket stream.\n");
+  return 0;
 }
 
 void closeSocket(int32_t sockfd) {
