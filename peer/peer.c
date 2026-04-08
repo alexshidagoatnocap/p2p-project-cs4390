@@ -18,12 +18,61 @@
 
 //Global State
 static int api_initialized = 0;
+static const uint32_t TRACKER_NOTIFY_BATCH_SIZE = 32;
 
 static void sleep_seconds(int seconds) {
   struct timespec ts;
   ts.tv_sec = seconds;
   ts.tv_nsec = 0;
   thrd_sleep(&ts, NULL);
+}
+
+static void sleep_milliseconds(int milliseconds) {
+  struct timespec ts;
+  ts.tv_sec = milliseconds / 1000;
+  ts.tv_nsec = (long)(milliseconds % 1000) * 1000000L;
+  thrd_sleep(&ts, NULL);
+}
+
+static int peer_has_segment(const PeerInfo *peer, uint32_t segment_id) {
+  if (!peer || !peer->is_active) {
+    return 0;
+  }
+
+  // If tracker has not provided segment metadata yet, treat peer as a candidate.
+  if (!peer->segments_available || peer->segments_capacity == 0) {
+    return 1;
+  }
+
+  if (segment_id >= peer->segments_capacity) {
+    return 0;
+  }
+
+  return peer->segments_available[segment_id] != 0;
+}
+
+static void release_peer_segment_map(PeerInfo *peer) {
+  if (!peer) {
+    return;
+  }
+
+  if (peer->segments_available) {
+    free(peer->segments_available);
+    peer->segments_available = NULL;
+  }
+  peer->segments_capacity = 0;
+}
+
+static void free_swarm_segment_maps(PeerSwarm *swarm) {
+  if (!swarm) {
+    return;
+  }
+
+  mtx_lock(&swarm->lock);
+  for (uint32_t i = 0; i < swarm->num_peers; i++) {
+    release_peer_segment_map(&swarm->peers[i]);
+  }
+  mtx_unlock(&swarm->lock);
 }
 
 //Initialization Functions
@@ -80,12 +129,7 @@ void create_file_segments(FileDownloadState *state, const char *filename, uint32
 
   //Calculate number of segments
   state->num_segments = calculate_num_segments(state->total_size, segment_size);
-
-  if (state->num_segments > MAX_SEGMENTS) {
-    printf("Too many segments: %u > %u\n", state->num_segments, MAX_SEGMENTS);
-    state->num_segments = 0;
-    return;
-  }
+  state->pending_tracker_updates = 0;
 
   //Allocate segment array
   state->segments =
@@ -158,7 +202,8 @@ void add_peer(PeerSwarm *swarm, const char *ip, uint16_t port) {
   peer->ip_address[MAX_IP_LEN - 1] = '\0';
   peer->port = port;
   peer->last_update = time(NULL);
-  peer->segments_available = 0;
+  peer->segments_available = NULL;
+  peer->segments_capacity = 0;
   peer->is_active = 1;
 
   swarm->num_peers++;
@@ -177,8 +222,11 @@ void remove_peer(PeerSwarm *swarm, uint32_t peer_index) {
   mtx_lock(&swarm->lock);
 
   if (peer_index < swarm->num_peers - 1) {
+    release_peer_segment_map(&swarm->peers[peer_index]);
     memmove(&swarm->peers[peer_index], &swarm->peers[peer_index + 1],
             (swarm->num_peers - peer_index - 1) * sizeof(PeerInfo));
+  } else {
+    release_peer_segment_map(&swarm->peers[peer_index]);
   }
   swarm->num_peers--;
 
@@ -201,7 +249,7 @@ void update_peer_timestamp(PeerSwarm *swarm, uint32_t peer_index) {
 /* Get the peer with the newest timestamp that has the specified segment
 This implements the peer selection strategy */
 PeerInfo *select_peer_for_segment(PeerSwarm *swarm, uint32_t segment_id) {
-  if (!swarm || swarm->num_peers == 0 || segment_id >= MAX_SEGMENTS) {
+  if (!swarm || swarm->num_peers == 0) {
     return NULL;
   }
 
@@ -214,12 +262,8 @@ PeerInfo *select_peer_for_segment(PeerSwarm *swarm, uint32_t segment_id) {
   for (uint32_t i = 0; i < swarm->num_peers; i++) {
     PeerInfo *peer = &swarm->peers[i];
 
-    if (!peer->is_active) {
-      continue;
-    }
-
     //Check if peer has this segment
-    if (!(peer->segments_available & (1U << (segment_id % 32)))) {
+    if (!peer_has_segment(peer, segment_id)) {
       continue;
     }
 
@@ -380,10 +424,22 @@ int update_segment_record(FileDownloadState *state, uint32_t segment_id,
 
   printf("Updated record file: %s\n", record_filename);
 
+  state->pending_tracker_updates++;
+  uint32_t pending_updates = state->pending_tracker_updates;
+  if (pending_updates >= TRACKER_NOTIFY_BATCH_SIZE ||
+      segment_id == state->num_segments - 1) {
+    state->pending_tracker_updates = 0;
+  }
+
   mtx_unlock(&state->lock);
 
-  //Notify tracker of this update
-  return notify_tracker(tracker_ip, tracker_port, state->filename, segment_id);
+  // Notify tracker in batches to avoid one network update per tiny segment.
+  if (pending_updates >= TRACKER_NOTIFY_BATCH_SIZE ||
+      segment_id == state->num_segments - 1) {
+    return notify_tracker(tracker_ip, tracker_port, state->filename, segment_id);
+  }
+
+  return 0;
 }
 
 /* Get list of peers from tracker who have segments of a file
@@ -511,7 +567,7 @@ int download_thread_worker(void *arg) {
     PeerInfo *peer = select_peer_for_segment(args->swarm, segment->segment_id);
     if (!peer) {
       printf("No peer available for segment %u, retrying...\n", segment->segment_id);
-      sleep_seconds(1);
+      sleep_milliseconds(200);
       continue;
     }
 
@@ -522,7 +578,7 @@ int download_thread_worker(void *arg) {
     }
 
     print_download_progress(args->state);
-    sleep_seconds(1); //Simulate network delay
+    sleep_milliseconds(25);
   }
 
   printf("Download worker exited\n");
@@ -574,7 +630,7 @@ int main(int argc, char *argv[]) {
   const char *tracker_ip = "127.0.0.1";
   uint16_t tracker_port = 3490;
   const char *filename = "largefile.bin";
-  uint32_t segment_size = 65536; /* 64KB segments */
+  uint32_t segment_size = 1024; // 1KB segments
 
   //Initialize download state
   FileDownloadState download_state = {0};
@@ -638,6 +694,7 @@ int main(int argc, char *argv[]) {
 
   //Cleanup
   printf("\nCleaning up..\n");
+  free_swarm_segment_maps(&peer_swarm);
   free_file_segments(&download_state);
   mtx_destroy(&download_state.lock);
   mtx_destroy(&peer_swarm.lock);

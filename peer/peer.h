@@ -7,7 +7,6 @@
 
 #define MAX_FILENAME_LEN 256
 #define MAX_PEERS 100
-#define MAX_SEGMENTS 1000
 #define MAX_IP_LEN 20
 #define MAX_PORT_LEN 6
 
@@ -24,7 +23,8 @@ typedef struct {
   char ip_address[MAX_IP_LEN];
   uint16_t port;
   time_t last_update;          // Last timestamp of this peer's update
-  uint32_t segments_available; // Bitmask of available segments
+  uint8_t *segments_available; // Dynamic per-segment availability map
+  uint32_t segments_capacity;  // Number of entries in availability map
   int is_active;               // Flag: 1 if peer is active, 0 otherwise
 } PeerInfo;
 
@@ -36,6 +36,7 @@ typedef struct {
   uint32_t num_segments; // Total number of segments
   FileSegment *segments; // Array of segments
   int record_updated;    // Track if record file needs update
+  uint32_t pending_tracker_updates; // Counter for batched tracker updates
   FILE *file_handle;     // File pointer for writing
   mtx_t lock;            // Mutex for thread-safe access
 } FileDownloadState;
