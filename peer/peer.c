@@ -65,7 +65,7 @@ static void release_peer_segment_map(PeerInfo *peer) {
 
 static void free_swarm_segment_maps(PeerSwarm *swarm) {
   if (!swarm) {
-    return;
+    return; 
   }
 
   mtx_lock(&swarm->lock);
