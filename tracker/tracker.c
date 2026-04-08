@@ -49,7 +49,7 @@ int findPeerIndex(const TrackerInfo *tracker, const char *ip, uint16_t port) {
   }
 
   for (size_t i = 0; i < tracker->numPeers; i++) {
-    if (strcmp(tracker->Peers[i].ip, ip) == 0 &&
+    if (strcmp(tracker->Peers[i].ip_address, ip) == 0 &&
         tracker->Peers[i].port == port) {
       return (int)i;
     }
@@ -111,13 +111,14 @@ CommandOutput trackerCreateCommand(const CreateTrackerArgs *args) {
   tracker->numPeers = 1;
 
   // Add initial peer
-  strncpy(tracker->Peers[0].ip, args->ip, sizeof(tracker->Peers[0].ip) - 1);
-  tracker->Peers[0].ip[sizeof(tracker->Peers[0].ip) - 1] = '\0';
+  strncpy(tracker->Peers[0].ip_address, args->ip,
+          sizeof(tracker->Peers[0].ip_address) - 1);
+  tracker->Peers[0].ip_address[sizeof(tracker->Peers[0].ip_address) - 1] = '\0';
 
   tracker->Peers[0].port = args->port;
   tracker->Peers[0].startByte = 0;
   tracker->Peers[0].endByte = args->filesize;
-  tracker->Peers[0].timestamp = time(NULL);
+  tracker->Peers[0].last_update = time(NULL);
 
   atomic_fetch_add(&numTrackerFiles_g, 1);
 
@@ -163,7 +164,7 @@ CommandOutput trackerUpdateCommand(const UpdateTrackerArgs *args) {
     // Update existing peer
     tracker->Peers[peerIdx].startByte = args->startByte;
     tracker->Peers[peerIdx].endByte = args->endByte;
-    tracker->Peers[peerIdx].timestamp = time(NULL);
+    tracker->Peers[peerIdx].last_update = time(NULL);
 
     snprintf(result.outMsg, BUFFER_SIZE,
              "updatetracker: updated existing peer for '%s'\n", args->filename);
@@ -177,13 +178,13 @@ CommandOutput trackerUpdateCommand(const UpdateTrackerArgs *args) {
     }
 
     PeerInfo *peer = &tracker->Peers[tracker->numPeers];
-    strncpy(peer->ip, args->ip, sizeof(peer->ip) - 1);
-    peer->ip[sizeof(peer->ip) - 1] = '\0';
+    strncpy(peer->ip_address, args->ip, sizeof(peer->ip_address) - 1);
+    peer->ip_address[sizeof(peer->ip_address) - 1] = '\0';
 
     peer->port = args->port;
     peer->startByte = args->startByte;
     peer->endByte = args->endByte;
-    peer->timestamp = time(NULL);
+    peer->last_update = time(NULL);
 
     tracker->numPeers++;
 
@@ -309,9 +310,9 @@ CommandOutput trackerGetCommand(const GetTrackerArgs *args) {
   for (size_t i = 0; i < tracker->numPeers; i++) {
     len +=
         snprintf(result.outMsg + len, BUFFER_SIZE - len, "%s:%u:%zu:%zu:%ld\n",
-                 tracker->Peers[i].ip, tracker->Peers[i].port,
+                 tracker->Peers[i].ip_address, tracker->Peers[i].port,
                  tracker->Peers[i].startByte, tracker->Peers[i].endByte,
-                 (long)tracker->Peers[i].timestamp);
+                 (long)tracker->Peers[i].last_update);
 
     if (len >= BUFFER_SIZE) {
       break;
@@ -448,9 +449,9 @@ CommandStatus createTrackerFile(size_t trackerId) {
   fprintf(tFile, "MD5: %s\n", tr->md5Hash);
 
   for (size_t i = 0; i < tr->numPeers; ++i) {
-    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr->Peers[i].ip, tr->Peers[i].port,
-            tr->Peers[i].startByte, tr->Peers[i].endByte,
-            (long)tr->Peers[i].timestamp);
+    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr->Peers[i].ip_address,
+            tr->Peers[i].port, tr->Peers[i].startByte, tr->Peers[i].endByte,
+            (long)tr->Peers[i].last_update);
   }
   mtx_unlock(&trkMutex);
 
@@ -483,9 +484,9 @@ CommandStatus updateTrackerFile(size_t trackerId) {
   fprintf(tFile, "MD5: %s\n", tr->md5Hash);
 
   for (size_t i = 0; i < tr->numPeers; ++i) {
-    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr->Peers[i].ip, tr->Peers[i].port,
-            tr->Peers[i].startByte, tr->Peers[i].endByte,
-            (long)tr->Peers[i].timestamp);
+    fprintf(tFile, "%s:%u:%zu:%zu:%ld\n", tr->Peers[i].ip_address,
+            tr->Peers[i].port, tr->Peers[i].startByte, tr->Peers[i].endByte,
+            (long)tr->Peers[i].last_update);
   }
 
   fclose(tFile);
@@ -501,7 +502,7 @@ static CommandStatus sendTrackerFile(char *tfName, FILE *tFile,
     return STATUS_FILE_ERROR;
   }
 
-  sendSocket(peerSockFD, tfName, FNAME_SIZE, 0);
+  sendSocket(peerSockFD, tfName, MAX_FILENAME_LEN, 0);
 
   fseek(tFile, 0, SEEK_END);
   uint32_t tfSize = ftell(tFile);
@@ -576,7 +577,7 @@ CommandStatus getAndSendTrackerInfo(TrackerInfo *tr, int32_t peerSockFD) {
   }
 
   FILE *tFile;
-  char tfName[FNAME_SIZE];
+  char tfName[MAX_FILENAME_LEN];
   snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr->filename);
   tFile = fopen(tfName, "rb");
   if (tFile == NULL) {
@@ -603,11 +604,11 @@ static void testCreateAndUpdateTracker() {
                         .md5Hash = "ABADBABE",
                         .numPeers = 1,
                         .trackerId = 1,
-                        .Peers[0] = {.ip = "127.0.0.1",
+                        .Peers[0] = {.ip_address = "127.0.0.1",
                                      .port = 9001,
                                      .startByte = 0,
                                      .endByte = 20000,
-                                     .timestamp = time(NULL)}};
+                                     .last_update = time(NULL)}};
   trackerArray_g[testTr.trackerId] = testTr;
   createTrackerFile(testTr.trackerId);
 
@@ -617,16 +618,16 @@ static void testCreateAndUpdateTracker() {
                          .md5Hash = "ABADBABE",
                          .numPeers = 2,
                          .trackerId = 1,
-                         .Peers[0] = {.ip = "127.0.0.2",
+                         .Peers[0] = {.ip_address = "127.0.0.2",
                                       .port = 9001,
                                       .startByte = 0,
                                       .endByte = 20000,
-                                      .timestamp = time(NULL)},
-                         .Peers[1] = {.ip = "192.168.1.2",
+                                      .last_update = time(NULL)},
+                         .Peers[1] = {.ip_address = "192.168.1.2",
                                       .port = 67,
                                       .startByte = 20001,
                                       .endByte = 40000,
-                                      .timestamp = time(NULL)}};
+                                      .last_update = time(NULL)}};
   trackerArray_g[testTr2.trackerId] = testTr2;
   updateTrackerFile(testTr2.trackerId);
 }

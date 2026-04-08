@@ -1,15 +1,9 @@
 #pragma once
 
-#include <threads.h>
+#include "protocol.h"
 #include <stdint.h>
 #include <stdio.h>
-#include <time.h>
-
-#define MAX_FILENAME_LEN 256
-#define MAX_PEERS 100
-#define MAX_SEGMENTS 1000
-#define MAX_IP_LEN 20
-#define MAX_PORT_LEN 6
+#include <threads.h>
 
 // Represents a single file segment
 typedef struct {
@@ -18,15 +12,6 @@ typedef struct {
   uint32_t size;       // Segment size in bytes
   int downloaded;      // Flag: 1 if downloaded, 0 otherwise
 } FileSegment;
-
-// Represents a peer in the network
-typedef struct {
-  char ip_address[MAX_IP_LEN];
-  uint16_t port;
-  time_t last_update;          // Last timestamp of this peer's update
-  uint32_t segments_available; // Bitmask of available segments
-  int is_active;               // Flag: 1 if peer is active, 0 otherwise
-} PeerInfo;
 
 // Represents the state of a file being downloaded
 typedef struct {
@@ -44,7 +29,7 @@ typedef struct {
 typedef struct {
   PeerInfo peers[MAX_PEERS];
   uint32_t num_peers;
-  mtx_t lock;          // Mutex for thread-safe access
+  mtx_t lock; // Mutex for thread-safe access
 } PeerSwarm;
 
 // Function Declarations

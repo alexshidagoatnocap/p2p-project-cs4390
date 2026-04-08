@@ -1,6 +1,7 @@
 // Peer system implementation to manage segements and trakcer communication
 #include "peer.h"
 #include "api.h"
+#include "protocol.h"
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -8,10 +9,63 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
-#include <unistd.h>
 
 // Global State
 static int api_initialized = 0;
+
+static CommandStatus recvTrackerFile(int32_t socketFD) {
+  char tfName[MAX_FILENAME_LEN];
+  char tfPath[MAX_FILENAME_LEN];
+  recvSocket(socketFD, tfName, MAX_FILENAME_LEN, 0);
+  snprintf(tfPath, sizeof(tfPath), "peer/trk/%s.trk", tfName);
+
+  uint32_t fileSize;
+  uint32_t fileSizeNet;
+  recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
+  fileSize = netToHostLong(fileSizeNet);
+
+  FILE *tFile = fopen(tfPath, "wb");
+  char fileBuffer[CHUNK_SIZE];
+  uint32_t totalRecv = 0;
+
+  while (totalRecv < fileSize) {
+    size_t bytesRecv = recvSocket(socketFD, fileBuffer, fileSize, 0);
+    if (bytesRecv <= 0)
+      break;
+    fwrite(fileBuffer, 1, bytesRecv, tFile);
+    totalRecv += bytesRecv;
+  }
+
+  fclose(tFile);
+  return STATUS_OK;
+}
+
+static CommandStatus recvRequestedFile(int32_t socketFD) {
+  char reqFileName[MAX_FILENAME_LEN];
+  char reqFilePath[MAX_FILENAME_LEN];
+  recvSocket(socketFD, reqFileName, MAX_FILENAME_LEN, 0);
+  snprintf(reqFilePath, sizeof(reqFilePath), "peer/%s", reqFileName);
+
+  uint32_t fileSizeNet;
+  recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
+  auto fileSize = netToHostLong(fileSizeNet);
+
+  FILE *tFile = fopen(reqFilePath, "wb");
+  char fileBuffer[CHUNK_SIZE];
+  uint32_t totalRecv = 0;
+
+  // WARN: THIS WILL RECV MORE BYTES THAN IT SHOULD, FIX
+  while (totalRecv < fileSize) {
+    size_t bytesRecv = recvSocket(socketFD, fileBuffer, sizeof(fileBuffer), 0);
+    if (bytesRecv <= 0)
+      break;
+    fwrite(fileBuffer, 1, bytesRecv, tFile);
+    totalRecv += bytesRecv;
+  }
+
+  fclose(tFile);
+  return STATUS_OK;
+}
 
 static void sleep_seconds(int seconds) {
   struct timespec ts;
@@ -712,10 +766,15 @@ int32_t bindSocket(int32_t sockfd, const SocketAddress *address) {
 }
 
 int32_t createIPV4SockStream() {
-  printf("Creating IPV4 socket stream.\n");
+  printf("Creating IPV4 socket stream (stub)\n");
   return 0;
 }
 
 void closeSocket(int32_t sockfd) {
   printf("Closing socket (stub) - fd: %d\n", sockfd);
+}
+
+uint32_t netToHostLong(uint32_t netlong) {
+  printf("Stubbing netToHostLong %d\n", netlong);
+  return 0;
 }
