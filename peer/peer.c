@@ -48,6 +48,7 @@ static CommandStatus recvRequestedFile(int32_t socketFD) {
   char fileBuffer[CHUNK_SIZE];
   uint32_t totalRecv = 0;
 
+  // WARN: THIS WILL RECV MORE BYTES THAN IT SHOULD, FIX
   while (totalRecv < fileSize) {
     size_t bytesRecv = recvSocket(socketFD, fileBuffer, sizeof(fileBuffer), 0);
     if (bytesRecv <= 0)
