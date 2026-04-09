@@ -13,59 +13,61 @@
 // Global State
 static int api_initialized = 0;
 
-static CommandStatus recvTrackerFile(int32_t socketFD) {
-  char tfName[MAX_FILENAME_LEN];
-  char tfPath[MAX_FILENAME_LEN];
-  recvSocket(socketFD, tfName, MAX_FILENAME_LEN, 0);
-  snprintf(tfPath, sizeof(tfPath), "peer/trk/%s.trk", tfName);
+// static CommandStatus recvTrackerFile(int32_t socketFD) {
+//   constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 13;
+//   char tfName[MAX_FILENAME_LEN] = "";
+//   char tfPath[MAX_PATH_NAME] = "";
+//   recvSocket(socketFD, tfName, MAX_FILENAME_LEN, 0);
+//   snprintf(tfPath, sizeof(tfPath), "peer/trk/%s.trk", tfName);
+//
+//   uint32_t fileSize;
+//   uint32_t fileSizeNet;
+//   recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
+//   fileSize = netToHostLong(fileSizeNet);
+//
+//   FILE *tFile = fopen(tfPath, "wb");
+//   char fileBuffer[CHUNK_SIZE];
+//   uint32_t totalRecv = 0;
+//
+//   while (totalRecv < fileSize) {
+//     size_t bytesRecv = recvSocket(socketFD, fileBuffer, fileSize, 0);
+//     if (bytesRecv <= 0)
+//       break;
+//     fwrite(fileBuffer, 1, bytesRecv, tFile);
+//     totalRecv += bytesRecv;
+//   }
+//
+//   fclose(tFile);
+//   return STATUS_OK;
+// }
 
-  uint32_t fileSize;
-  uint32_t fileSizeNet;
-  recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
-  fileSize = netToHostLong(fileSizeNet);
-
-  FILE *tFile = fopen(tfPath, "wb");
-  char fileBuffer[CHUNK_SIZE];
-  uint32_t totalRecv = 0;
-
-  while (totalRecv < fileSize) {
-    size_t bytesRecv = recvSocket(socketFD, fileBuffer, fileSize, 0);
-    if (bytesRecv <= 0)
-      break;
-    fwrite(fileBuffer, 1, bytesRecv, tFile);
-    totalRecv += bytesRecv;
-  }
-
-  fclose(tFile);
-  return STATUS_OK;
-}
-
-static CommandStatus recvRequestedFile(int32_t socketFD) {
-  char reqFileName[MAX_FILENAME_LEN];
-  char reqFilePath[MAX_FILENAME_LEN];
-  recvSocket(socketFD, reqFileName, MAX_FILENAME_LEN, 0);
-  snprintf(reqFilePath, sizeof(reqFilePath), "peer/%s", reqFileName);
-
-  uint32_t fileSizeNet;
-  recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
-  auto fileSize = netToHostLong(fileSizeNet);
-
-  FILE *tFile = fopen(reqFilePath, "wb");
-  char fileBuffer[CHUNK_SIZE];
-  uint32_t totalRecv = 0;
-
-  // WARN: THIS WILL RECV MORE BYTES THAN IT SHOULD, FIX
-  while (totalRecv < fileSize) {
-    size_t bytesRecv = recvSocket(socketFD, fileBuffer, sizeof(fileBuffer), 0);
-    if (bytesRecv <= 0)
-      break;
-    fwrite(fileBuffer, 1, bytesRecv, tFile);
-    totalRecv += bytesRecv;
-  }
-
-  fclose(tFile);
-  return STATUS_OK;
-}
+// static CommandStatus recvRequestedFile(int32_t socketFD) {
+//   constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 5;
+//   char reqFileName[MAX_FILENAME_LEN] = "";
+//   char reqFilePath[MAX_PATH_NAME] = "";
+//   recvSocket(socketFD, reqFileName, MAX_FILENAME_LEN, 0);
+//   snprintf(reqFilePath, sizeof(reqFilePath), "peer/%s", reqFileName);
+//
+//   uint32_t fileSizeNet;
+//   recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
+//   auto fileSize = netToHostLong(fileSizeNet);
+//
+//   FILE *tFile = fopen(reqFilePath, "wb");
+//   char fileBuffer[CHUNK_SIZE];
+//   uint32_t totalRecv = 0;
+//
+//   // WARN: THIS WILL RECV MORE BYTES THAN IT SHOULD, FIX
+//   while (totalRecv < fileSize) {
+//     size_t bytesRecv = recvSocket(socketFD, fileBuffer, sizeof(fileBuffer),
+//     0); if (bytesRecv <= 0)
+//       break;
+//     fwrite(fileBuffer, 1, bytesRecv, tFile);
+//     totalRecv += bytesRecv;
+//   }
+//
+//   fclose(tFile);
+//   return STATUS_OK;
+// }
 
 static void sleep_seconds(int seconds) {
   struct timespec ts;
@@ -391,7 +393,7 @@ int notify_tracker(const char *tracker_ip, uint16_t tracker_port,
   char message[MAX_FILENAME_LEN + 20];
   snprintf(message, sizeof(message), "%s:%u", filename, segment_id);
 
-  if (sendSocket(sockfd, message, strlen(message), 0) == -1) {
+  if (sendSocket(sockfd, message, strlen(message), 0) == (size_t)-1) {
     printf("Failed to send notification to tracker\n");
     removeIPV4Addr(addr);
     closeSocket(sockfd);
@@ -476,7 +478,7 @@ int get_peer_list_from_tracker(const char *tracker_ip, uint16_t tracker_port,
   char request[MAX_FILENAME_LEN + 10];
   snprintf(request, sizeof(request), "LIST:%s", filename);
 
-  if (sendSocket(sockfd, request, strlen(request), 0) == -1) {
+  if (sendSocket(sockfd, request, strlen(request), 0) == (size_t)-1) {
     printf("Failed to send peer list request\n");
     removeIPV4Addr(addr);
     closeSocket(sockfd);
@@ -626,7 +628,7 @@ int tracker_sync_thread_worker(void *arg) {
 }
 
 // Main Program
-int main(int argc, char *argv[]) {
+int main() {
   printf("P2P Peer Program Started\n\n");
 
   // Initialize peer module
@@ -744,23 +746,29 @@ void removeIPV4Addr(SocketAddress *addr) {
 }
 
 int32_t connectToSocket(int32_t sockfd, const SocketAddress *address) {
+  (void)address;
   printf("Connecting to socket (stub) - fd: %d\n", sockfd);
   return 0; // Success
 }
 
 size_t sendSocket(int32_t sockfd, const void *buffer, uint32_t len,
                   int32_t flags) {
+  (void)flags;
+  (void)buffer;
   printf("Sending data (stub) - fd: %d, len: %u\n", sockfd, len);
   return len; // Pretend we sent all bytes
 }
 
 size_t recvSocket(int32_t sockfd, const void *buffer, uint32_t len,
                   int32_t flags) {
+  (void)flags;
+  (void)buffer;
   printf("Receiving data (stub) - fd: %d, len: %u\n", sockfd, len);
   return 0; // No data received
 }
 
 int32_t bindSocket(int32_t sockfd, const SocketAddress *address) {
+  (void)address;
   printf("Binding socket (stub) - fd: %d\n", sockfd);
   return 0; // Success
 }

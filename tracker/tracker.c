@@ -513,7 +513,7 @@ static CommandStatus sendTrackerFile(char *tfName, FILE *tFile,
   char sendBuffer[CHUNK_SIZE];
   size_t bytesRead = 0;
   while ((bytesRead = fread(sendBuffer, 1, sizeof(sendBuffer), tFile)) > 0) {
-    if (sendSocket(peerSockFD, sendBuffer, bytesRead, 0) == -1) {
+    if (sendSocket(peerSockFD, sendBuffer, bytesRead, 0) == (size_t)-1) {
       perror("Error sending tracker file!");
       return STATUS_FAIL;
     }
@@ -544,14 +544,15 @@ static CommandStatus getSendFile(TrackerInfo *trk, int32_t peerSockFD) {
   uint32_t reqFileNetSize = hostToNetLong(reqFileSize);
 
   // Check return values for socket errors
-  if (sendSocket(peerSockFD, trk->filename, sizeof(trk->filename), 0) == -1) {
+  if (sendSocket(peerSockFD, trk->filename, sizeof(trk->filename), 0) ==
+      (size_t)-1) {
     perror("Error sending filename!");
     fclose(reqFile);
     return STATUS_FAIL;
   }
 
   if (sendSocket(peerSockFD, &reqFileNetSize, sizeof(reqFileNetSize), 0) ==
-      -1) {
+      (size_t)-1) {
     perror("Error sending file size!");
     fclose(reqFile);
     return STATUS_FAIL;
@@ -560,7 +561,7 @@ static CommandStatus getSendFile(TrackerInfo *trk, int32_t peerSockFD) {
   char sendBuffer[CHUNK_SIZE];
   size_t bytesRead = 0;
   while ((bytesRead = fread(sendBuffer, 1, sizeof(sendBuffer), reqFile)) > 0) {
-    if (sendSocket(peerSockFD, sendBuffer, bytesRead, 0) == -1) {
+    if (sendSocket(peerSockFD, sendBuffer, bytesRead, 0) == (size_t)-1) {
       perror("Error sending requested file!");
       fclose(reqFile);
       return STATUS_FAIL;
@@ -595,41 +596,6 @@ CommandStatus getAndSendTrackerInfo(TrackerInfo *tr, int32_t peerSockFD) {
 
   mtx_unlock(&trkMutex);
   return STATUS_OK;
-}
-
-static void testCreateAndUpdateTracker() {
-  TrackerInfo testTr = {.filename = "for-whom-the-bell-tolls.mp3",
-                        .filesize = 4000000,
-                        .description = "plz lars dont sue me",
-                        .md5Hash = "ABADBABE",
-                        .numPeers = 1,
-                        .trackerId = 1,
-                        .Peers[0] = {.ip_address = "127.0.0.1",
-                                     .port = 9001,
-                                     .startByte = 0,
-                                     .endByte = 20000,
-                                     .last_update = time(NULL)}};
-  trackerArray_g[testTr.trackerId] = testTr;
-  createTrackerFile(testTr.trackerId);
-
-  TrackerInfo testTr2 = {.filename = "for-whom-the-bell-tolls.mp3",
-                         .filesize = 4000000,
-                         .description = "plz lars dont sue me",
-                         .md5Hash = "ABADBABE",
-                         .numPeers = 2,
-                         .trackerId = 1,
-                         .Peers[0] = {.ip_address = "127.0.0.2",
-                                      .port = 9001,
-                                      .startByte = 0,
-                                      .endByte = 20000,
-                                      .last_update = time(NULL)},
-                         .Peers[1] = {.ip_address = "192.168.1.2",
-                                      .port = 67,
-                                      .startByte = 20001,
-                                      .endByte = 40000,
-                                      .last_update = time(NULL)}};
-  trackerArray_g[testTr2.trackerId] = testTr2;
-  updateTrackerFile(testTr2.trackerId);
 }
 
 int main() {

@@ -9,6 +9,8 @@ target_include_directories(peer_app
 
 message(STATUS "Building peer_app standalone with stub socket API")
 
+target_compile_options(peer_app PRIVATE -Wall -Wextra -Wpedantic)
+
 target_include_directories(peer_app
   PRIVATE
   ../protocol/

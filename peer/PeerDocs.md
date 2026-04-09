@@ -1,4 +1,4 @@
-Peer System impmenetation
+# Peer System Implementation
 
 Intializes the peer modules and socket API
 
@@ -23,5 +23,3 @@ Still need to:
 - The network functions at the bottom are stubbed so it doesn't build a real socket
 - Loop back testing on local host will be 
 - Need to be able to run 13 peers for the project
-
-

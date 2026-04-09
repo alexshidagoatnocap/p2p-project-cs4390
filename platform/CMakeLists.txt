@@ -12,4 +12,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     STATIC
     windows_api.c
   )
+else()
+  message(STATUS "No platform detected! Using tests.")
+  set(PLATFORM_API "TESTING" CACHE INTERNAL "")
 endif()

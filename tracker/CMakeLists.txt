@@ -7,7 +7,9 @@ target_include_directories(tracker_app
   ../platform
 )
 
-message(STATUS "Platform API is ${PLATFORM_API}")
+message(STATUS "Tracker: Platform API is ${PLATFORM_API}")
+
+target_compile_options(tracker_app PRIVATE -Wall -Wextra -Wpedantic)
 
 if(PLATFORM_API STREQUAL "LINUX_API")
   target_link_libraries(tracker_app
