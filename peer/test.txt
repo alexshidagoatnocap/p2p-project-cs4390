@@ -1,0 +1,5 @@
+Consider the Distance Vector Routing algorithm in a network of 1000 nodes. Each node has 19 lines to other nodes. If the delay values are between 0 and 249ms, and the delay vectors are exchanged 3 times per second.  
+How much data rate per (full duplex) line is taken by the routing algorithm?  
+
+Consider Distance Vector Routing for the following three-node network where the link labels indicate the associated links costs and the nodes are marked as x, y, and z. 
+network shown in Problem P26. Using Dijkstra’s algorithm, and showing your work using a table similar to Table 4.3, do the follow
