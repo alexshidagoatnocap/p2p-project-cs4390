@@ -13,67 +13,143 @@
 // Global State
 static int api_initialized = 0;
 
-// static CommandStatus recvTrackerFile(int32_t socketFD) {
-//   constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 13;
-//   char tfName[MAX_FILENAME_LEN] = "";
-//   char tfPath[MAX_PATH_NAME] = "";
-//   recvSocket(socketFD, tfName, MAX_FILENAME_LEN, 0);
-//   snprintf(tfPath, sizeof(tfPath), "peer/trk/%s.trk", tfName);
-//
-//   uint32_t fileSize;
-//   uint32_t fileSizeNet;
-//   recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
-//   fileSize = netToHostLong(fileSizeNet);
-//
-//   FILE *tFile = fopen(tfPath, "wb");
-//   char fileBuffer[CHUNK_SIZE];
-//   uint32_t totalRecv = 0;
-//
-//   while (totalRecv < fileSize) {
-//     size_t bytesRecv = recvSocket(socketFD, fileBuffer, fileSize, 0);
-//     if (bytesRecv <= 0)
-//       break;
-//     fwrite(fileBuffer, 1, bytesRecv, tFile);
-//     totalRecv += bytesRecv;
-//   }
-//
-//   fclose(tFile);
-//   return STATUS_OK;
-// }
+static CommandStatus recvTrackerFile(int32_t socketFD) {
+  constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 13;
+  char tfName[MAX_FILENAME_LEN] = "";
+  char tfPath[MAX_PATH_NAME] = "";
+  recvSocket(socketFD, tfName, MAX_FILENAME_LEN, 0);
+  snprintf(tfPath, sizeof(tfPath), "peer/trk/%s.trk", tfName);
 
-// static CommandStatus recvRequestedFile(int32_t socketFD) {
-//   constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 5;
-//   char reqFileName[MAX_FILENAME_LEN] = "";
-//   char reqFilePath[MAX_PATH_NAME] = "";
-//   recvSocket(socketFD, reqFileName, MAX_FILENAME_LEN, 0);
-//   snprintf(reqFilePath, sizeof(reqFilePath), "peer/%s", reqFileName);
-//
-//   uint32_t fileSizeNet;
-//   recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
-//   auto fileSize = netToHostLong(fileSizeNet);
-//
-//   FILE *tFile = fopen(reqFilePath, "wb");
-//   char fileBuffer[CHUNK_SIZE];
-//   uint32_t totalRecv = 0;
-//
-//   // WARN: THIS WILL RECV MORE BYTES THAN IT SHOULD, FIX
-//   while (totalRecv < fileSize) {
-//     size_t bytesRecv = recvSocket(socketFD, fileBuffer, sizeof(fileBuffer),
-//     0); if (bytesRecv <= 0)
-//       break;
-//     fwrite(fileBuffer, 1, bytesRecv, tFile);
-//     totalRecv += bytesRecv;
-//   }
-//
-//   fclose(tFile);
-//   return STATUS_OK;
-// }
+  uint32_t fileSize;
+  uint32_t fileSizeNet;
+  recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
+  fileSize = netToHostLong(fileSizeNet);
+
+  FILE *tFile = fopen(tfPath, "wb");
+  char fileBuffer[CHUNK_SIZE];
+  uint32_t totalRecv = 0;
+
+  while (totalRecv < fileSize) {
+    size_t bytesRecv = recvSocket(socketFD, fileBuffer, fileSize, 0);
+    if (bytesRecv <= 0)
+      break;
+    fwrite(fileBuffer, 1, bytesRecv, tFile);
+    totalRecv += bytesRecv;
+  }
+
+  fclose(tFile);
+  return STATUS_OK;
+}
+
+static CommandStatus recvRequestedFile(int32_t socketFD) {
+  constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 5;
+  char reqFileName[MAX_FILENAME_LEN] = "";
+  char reqFilePath[MAX_PATH_NAME] = "";
+  recvSocket(socketFD, reqFileName, MAX_FILENAME_LEN, 0);
+  snprintf(reqFilePath, sizeof(reqFilePath), "peer/%s", reqFileName);
+
+  uint32_t fileSizeNet;
+  recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
+  auto fileSize = netToHostLong(fileSizeNet);
+
+  FILE *tFile = fopen(reqFilePath, "wb");
+  char fileBuffer[CHUNK_SIZE];
+  uint32_t totalRecv = 0;
+
+  // WARN: THIS WILL RECV MORE BYTES THAN IT SHOULD, FIX
+  while (totalRecv < fileSize) {
+    size_t bytesRecv = recvSocket(socketFD, fileBuffer, sizeof(fileBuffer), 0);
+    if (bytesRecv <= 0)
+      break;
+    fwrite(fileBuffer, 1, bytesRecv, tFile);
+    totalRecv += bytesRecv;
+  }
+
+  fclose(tFile);
+  return STATUS_OK;
+}
+
+// Receive message from tracker for get command.
+static CommandStatus recvGetCommand(int32_t socketFD, char *msgFromTrk) {
+  // First receive the response to check if GET succeeded
+  if (recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0) == (size_t)-1) {
+    return STATUS_FAIL;
+  }
+
+  // Only try to receive file if response indicates success
+  if (strncmp(msgFromTrk, "REP GET BEGIN", 13) == 0) {
+    // GET was successful, receive the file
+    recvTrackerFile(socketFD);
+    recvRequestedFile(socketFD);
+    printf("%s\n", msgFromTrk);
+    return STATUS_OK;
+  }
+
+  // File requested does not exist
+  return STATUS_FILE_ERROR;
+}
+
+// Receive message from tracker for createtracker, updatetracker, and list
+// commands.
+static CommandStatus recvTrackerResponse(int32_t socketFD, char *msgFromTrk) {
+  if (recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0) == (size_t)-1) {
+    return STATUS_FAIL;
+  }
+  printf("%s\n", msgFromTrk);
+  return STATUS_OK;
+}
 
 static void sleep_seconds(int seconds) {
   struct timespec ts;
   ts.tv_sec = seconds;
   ts.tv_nsec = 0;
   thrd_sleep(&ts, NULL);
+}
+
+CommandType get_peer_command(char *line) {
+  (void)line;
+  /*
+    The peer needs to be able to take in and handle these
+    commands from the user.
+
+    - list
+    - get
+    - createtracker
+    - updatetracker
+    - exit
+
+    The parsing functions are already made in protocol.h.
+    You will need to check whether the syntax of the command
+    and argument are valid on the peer side before sending
+    the command string over the socket to the tracker.
+    Most of this has alreaby been implemented in the tracker
+    but you will have to adapt it to the peer.
+
+    You should also handle the way the peer is receiving
+    messages from the tracker, including error messages based
+    on the reply from the tracker.
+
+    You will return the command type of the parsed function and
+    CMD_UNKNOWN if it failed.
+  */
+  return CMD_UNKNOWN;
+}
+
+CommandStatus get_peer_config() {
+  /*
+    Every peer should have its own IPV4 address and port for other
+    peers to connect to stored in a .cfg file.
+
+    The first lines should be the IPV4 address, the second should
+    be the port number, and the third should be the updatetracker
+    interval in seconds. From this file, store the relevant information
+    in the peer program.
+
+    It will return STATUS_FILE_ERROR if the file does not exist, and
+    STATUS_FAIL if the parsing was not successful or correct. Otherwise
+    return STATUS_OK.
+  */
+  return STATUS_FAIL;
 }
 
 // Initialization Functions

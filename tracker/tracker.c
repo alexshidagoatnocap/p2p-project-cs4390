@@ -433,8 +433,12 @@ CommandStatus createTrackerFile(size_t trackerId) {
   tr = &trackerArray_g[trackerId];
 
   FILE *tFile;
-  char tfName[512];
-  snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr->filename);
+
+  constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 16;
+  char tfName[MAX_FILENAME_LEN] = "";
+  char tfPath[MAX_PATH_NAME] = "";
+
+  snprintf(tfPath, sizeof(tfPath), "tracker/trk/%s.trk", tr->filename);
 
   tFile = fopen(tfName, "wx");
   if (tFile == NULL) {
@@ -532,8 +536,10 @@ static CommandStatus getSendFile(TrackerInfo *trk, int32_t peerSockFD) {
   }
 
   size_t reqFileSize = trk->filesize;
-  char filename[256];
-  snprintf(filename, sizeof(filename), "tracker/%s", trk->filename);
+  constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 8;
+  char filename[MAX_FILENAME_LEN] = "";
+  char filepath[MAX_PATH_NAME] = "";
+  snprintf(filepath, sizeof(filepath), "tracker/%s", trk->filename);
 
   FILE *reqFile = fopen(filename, "rb");
   if (!reqFile) {
@@ -578,8 +584,10 @@ CommandStatus getAndSendTrackerInfo(TrackerInfo *tr, int32_t peerSockFD) {
   }
 
   FILE *tFile;
-  char tfName[MAX_FILENAME_LEN];
-  snprintf(tfName, sizeof(tfName), "tracker/trk/%s.trk", tr->filename);
+  constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 16;
+  char tfName[MAX_FILENAME_LEN] = "";
+  char tfPath[MAX_PATH_NAME] = "";
+  snprintf(tfPath, sizeof(tfPath), "tracker/trk/%s.trk", tr->filename);
   tFile = fopen(tfName, "rb");
   if (tFile == NULL) {
     printf("Tracker file does not exist for %s\n", tr->filename);

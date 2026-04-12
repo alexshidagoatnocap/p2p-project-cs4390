@@ -34,6 +34,10 @@ typedef struct {
 
 // Function Declarations
 
+CommandStatus get_peer_config();
+
+CommandType get_peer_command(char *line);
+
 // Initialization functions
 void peer_init(void);
 void peer_cleanup(void);
