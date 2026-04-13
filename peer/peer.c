@@ -9,9 +9,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
+#include <ctype.h>
 
 // Global State
 static int api_initialized = 0;
+
+
+
+
+// Simple peer config storage for now
+static char g_peer_ip[MAX_IP_LEN] = "";
+static uint16_t g_peer_port = 0;
+static uint32_t g_peer_update_interval = 0;
+
+// Change this name to our  team config filename
+static const char *PEER_CONFIG_FILE = "peer.cfg";
+
+
+
 
 static CommandStatus recvTrackerFile(int32_t socketFD) {
   constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 13;
@@ -132,10 +147,51 @@ CommandType get_peer_command(char *line) {
     You will return the command type of the parsed function and
     CMD_UNKNOWN if it failed.
   */
-  return CMD_UNKNOWN;
+
+  if (line == NULL) {
+    printf("Error: command line is NULL\n");
+    return CMD_UNKNOWN;
+  }
+
+  // parseCommand modifies the input, so use a local copy
+  char buffer[BUFFER_SIZE];
+  snprintf(buffer, sizeof(buffer), "%s", line);
+
+  ParsedCommand parsed = parseCommand(buffer);
+
+  if (!parsed.parseSuccess) {
+    printf("Invalid command: %s\n", parsed.parseError);
+    return CMD_UNKNOWN;
+  }
+
+  switch (parsed.type) {
+  case CMD_CREATE_TRACKER:
+    printf("Recognized command: createtracker\n");
+    break;
+  case CMD_UPDATE_TRACKER:
+    printf("Recognized command: updatetracker\n");
+    break;
+  case CMD_LIST:
+    printf("Recognized command: list\n");
+    break;
+  case CMD_GET:
+    printf("Recognized command: get\n");
+    break;
+  case CMD_EXIT:
+    printf("Recognized command: exit\n");
+    break;
+  default:
+    printf("Unknown command type\n");
+    return CMD_UNKNOWN;
+  }
+
+  return parsed.type;
+
+  //return CMD_UNKNOWN;
 }
 
 CommandStatus get_peer_config() {
+
   /*
     Every peer should have its own IPV4 address and port for other
     peers to connect to stored in a .cfg file.
@@ -149,7 +205,64 @@ CommandStatus get_peer_config() {
     STATUS_FAIL if the parsing was not successful or correct. Otherwise
     return STATUS_OK.
   */
-  return STATUS_FAIL;
+
+  FILE *fp = fopen(PEER_CONFIG_FILE, "r");
+  if (fp == NULL) {
+    printf("Error: could not open config file '%s'\n", PEER_CONFIG_FILE);
+    return STATUS_FILE_ERROR;
+  }
+
+  char ipLine[128] = "";
+  char portLine[128] = "";
+  char intervalLine[128] = "";
+
+  if (fgets(ipLine, sizeof(ipLine), fp) == NULL ||
+      fgets(portLine, sizeof(portLine), fp) == NULL ||
+      fgets(intervalLine, sizeof(intervalLine), fp) == NULL) {
+    printf("Error: config file '%s' does not contain 3 valid lines\n",
+           PEER_CONFIG_FILE);
+    fclose(fp);
+    return STATUS_FAIL;
+  }
+
+  fclose(fp);
+
+  ipLine[strcspn(ipLine, "\r\n")] = '\0';
+  portLine[strcspn(portLine, "\r\n")] = '\0';
+  intervalLine[strcspn(intervalLine, "\r\n")] = '\0';
+
+  if (ipLine[0] == '\0' || portLine[0] == '\0' || intervalLine[0] == '\0') {
+    printf("Error: config file contains empty fields\n");
+    return STATUS_FAIL;
+  }
+
+  char *endPtr = NULL;
+
+  long portVal = strtol(portLine, &endPtr, 10);
+  if (*endPtr != '\0' || portVal <= 0 || portVal > 65535) {
+    printf("Error: invalid port number in config: %s\n", portLine);
+    return STATUS_FAIL;
+  }
+
+  endPtr = NULL;
+  long intervalVal = strtol(intervalLine, &endPtr, 10);
+  if (*endPtr != '\0' || intervalVal <= 0) {
+    printf("Error: invalid update interval in config: %s\n", intervalLine);
+    return STATUS_FAIL;
+  }
+
+  snprintf(g_peer_ip, sizeof(g_peer_ip), "%s", ipLine);
+  g_peer_port = (uint16_t)portVal;
+  g_peer_update_interval = (uint32_t)intervalVal;
+
+  printf("Peer config loaded successfully\n");
+  printf("Peer IP: %s\n", g_peer_ip);
+  printf("Peer Port: %u\n", g_peer_port);
+  printf("Update Interval: %u seconds\n", g_peer_update_interval);
+
+  return STATUS_OK;
+
+  //return STATUS_FAIL;
 }
 
 // Initialization Functions
