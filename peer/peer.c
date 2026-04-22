@@ -9,13 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
-#include <ctype.h>
 
 // Global State
 static int api_initialized = 0;
-
-
-
 
 // Simple peer config storage for now
 static char g_peer_ip[MAX_IP_LEN] = "";
@@ -25,9 +21,6 @@ static uint32_t g_peer_update_interval = 0;
 // Change this name to our  team config filename
 static const char *PEER_CONFIG_FILE = "peer.cfg";
 
-
-
-
 static CommandStatus recvTrackerFile(int32_t socketFD) {
   constexpr int32_t MAX_PATH_NAME = MAX_FILENAME_LEN + 13;
   char tfName[MAX_FILENAME_LEN] = "";
@@ -36,7 +29,7 @@ static CommandStatus recvTrackerFile(int32_t socketFD) {
   snprintf(tfPath, sizeof(tfPath), "peer/trk/%s.trk", tfName);
 
   uint32_t fileSize;
-  uint32_t fileSizeNet;
+  uint32_t fileSizeNet = 0;
   recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
   fileSize = netToHostLong(fileSizeNet);
 
@@ -63,7 +56,7 @@ static CommandStatus recvRequestedFile(int32_t socketFD) {
   recvSocket(socketFD, reqFileName, MAX_FILENAME_LEN, 0);
   snprintf(reqFilePath, sizeof(reqFilePath), "peer/%s", reqFileName);
 
-  uint32_t fileSizeNet;
+  uint32_t fileSizeNet = 0;
   recvSocket(socketFD, &fileSizeNet, sizeof(fileSizeNet), 0);
   auto fileSize = netToHostLong(fileSizeNet);
 
@@ -122,7 +115,6 @@ static void sleep_seconds(int seconds) {
 }
 
 CommandType get_peer_command(char *line) {
-  (void)line;
   /*
     The peer needs to be able to take in and handle these
     commands from the user.
@@ -186,8 +178,6 @@ CommandType get_peer_command(char *line) {
   }
 
   return parsed.type;
-
-  //return CMD_UNKNOWN;
 }
 
 CommandStatus get_peer_config() {
@@ -261,8 +251,6 @@ CommandStatus get_peer_config() {
   printf("Update Interval: %u seconds\n", g_peer_update_interval);
 
   return STATUS_OK;
-
-  //return STATUS_FAIL;
 }
 
 // Initialization Functions
