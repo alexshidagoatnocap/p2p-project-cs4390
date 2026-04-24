@@ -36,7 +36,7 @@ typedef struct {
 
 CommandStatus get_peer_config();
 
-CommandType get_peer_command(char *line);
+CommandType get_peer_command(char *line, int32_t socketFD);
 
 // Initialization functions
 void peer_init(void);

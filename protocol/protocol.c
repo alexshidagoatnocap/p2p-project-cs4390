@@ -141,8 +141,7 @@ static size_t splitTokens(char *buffer, char *tokens[], size_t maxTokens) {
 
 // ============ COMMAND ARGUMENT PARSING ============
 
-static int parseCreateTrackerArgs(const char *argStr,
-                                  CreateTrackerArgs *args) {
+static int parseCreateTrackerArgs(const char *argStr, CreateTrackerArgs *args) {
   if (argStr == NULL || args == NULL) {
     return 0;
   }
@@ -184,7 +183,7 @@ static int parseCreateTrackerArgs(const char *argStr,
                            "%s%s", (i == 2 ? "" : " "), tokens[i]);
 
     if (written < 0 || (size_t)written >= sizeof(description) - descPos) {
-      return 0;  // Description too long
+      return 0; // Description too long
     }
     descPos += (size_t)written;
   }
@@ -201,8 +200,7 @@ static int parseCreateTrackerArgs(const char *argStr,
   return 1;
 }
 
-static int parseUpdateTrackerArgs(const char *argStr,
-                                  UpdateTrackerArgs *args) {
+static int parseUpdateTrackerArgs(const char *argStr, UpdateTrackerArgs *args) {
   if (argStr == NULL || args == NULL) {
     return 0;
   }
@@ -284,17 +282,17 @@ static int parseCommandArguments(CommandType type, const char *argStr,
   }
 
   switch (type) {
-    case CMD_CREATE_TRACKER:
-      return parseCreateTrackerArgs(argStr, &args->createTracker);
-    case CMD_UPDATE_TRACKER:
-      return parseUpdateTrackerArgs(argStr, &args->updateTracker);
-    case CMD_GET:
-      return parseGetTrackerArgs(argStr, &args->getTracker);
-    case CMD_LIST:
-    case CMD_EXIT:
-    case CMD_UNKNOWN:
-    default:
-      return 1;  // These don't need arguments
+  case CMD_CREATE_TRACKER:
+    return parseCreateTrackerArgs(argStr, &args->createTracker);
+  case CMD_UPDATE_TRACKER:
+    return parseUpdateTrackerArgs(argStr, &args->updateTracker);
+  case CMD_GET:
+    return parseGetTrackerArgs(argStr, &args->getTracker);
+  case CMD_LIST:
+  case CMD_EXIT:
+  case CMD_UNKNOWN:
+  default:
+    return 1; // These don't need arguments
   }
 }
 
@@ -324,8 +322,8 @@ CommandType identifyCommand(char *command) {
 
 ParsedCommand parseCommand(char *line) {
   ParsedCommand result = {
-    .type = CMD_UNKNOWN,
-    .parseSuccess = 0,
+      .type = CMD_UNKNOWN,
+      .parseSuccess = 0,
   };
   result.parseError[0] = '\0';
 
@@ -366,11 +364,27 @@ ParsedCommand parseCommand(char *line) {
   }
 
   // Parse arguments based on command type
-  result.parseSuccess = parseCommandArguments(result.type, savePtr, &result.args);
+  result.parseSuccess =
+      parseCommandArguments(result.type, savePtr, &result.args);
 
   if (!result.parseSuccess) {
+    char *cmdTypeStr = NULL;
+    switch (result.type) {
+    case CMD_GET:
+      cmdTypeStr = "get";
+      break;
+    case CMD_CREATE_TRACKER:
+      cmdTypeStr = "createtracker";
+      break;
+    case CMD_UPDATE_TRACKER:
+      cmdTypeStr = "updatetracker";
+      break;
+    default:
+      cmdTypeStr = "Command does not accept arguments";
+      break;
+    }
     snprintf(result.parseError, sizeof(result.parseError),
-             "Invalid arguments for command");
+             "Invalid arguments for command: %s", cmdTypeStr);
   }
 
   return result;

@@ -114,7 +114,7 @@ static void sleep_seconds(int seconds) {
   thrd_sleep(&ts, NULL);
 }
 
-CommandType get_peer_command(char *line) {
+CommandType get_peer_command(char *line, int32_t socketFD) {
   /*
     The peer needs to be able to take in and handle these
     commands from the user.
@@ -156,21 +156,35 @@ CommandType get_peer_command(char *line) {
     return CMD_UNKNOWN;
   }
 
+  char msgFromTrk[BUFFER_SIZE];
   switch (parsed.type) {
   case CMD_CREATE_TRACKER:
     printf("Recognized command: createtracker\n");
+    recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+    printf("Message from tracker: %s\n", msgFromTrk);
     break;
   case CMD_UPDATE_TRACKER:
     printf("Recognized command: updatetracker\n");
+    recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+    printf("Message from tracker: %s\n", msgFromTrk);
     break;
   case CMD_LIST:
     printf("Recognized command: list\n");
+    recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+    printf("Message from tracker: %s\n", msgFromTrk);
     break;
   case CMD_GET:
     printf("Recognized command: get\n");
+    recvSocket(socketFD, msgFromTrk, BUFFER_SIZE, 0);
+    if (strncmp(msgFromTrk, "REP GET BEGIN", 13) == 0) {
+      // GET was successful, receive the file
+      recvTrackerFile(socketFD);
+      recvRequestedFile(socketFD);
+    }
+    printf("Message from tracker: %s\n", msgFromTrk);
     break;
   case CMD_EXIT:
-    printf("Recognized command: exit\n");
+    printf("Exiting Peer...\n");
     break;
   default:
     printf("Unknown command type\n");
@@ -813,76 +827,101 @@ int main() {
 
   // Configuration should be read from config file in real implementation
   const char *tracker_ip = "127.0.0.1";
-  uint16_t tracker_port = 3490;
+  uint16_t tracker_port = 2000;
   const char *filename = "largefile.bin";
-  uint32_t segment_size = 65536; /* 64KB segments */
+  uint32_t segment_size = MAX_SEGMENTS;
 
-  // Initialize download state
-  FileDownloadState download_state = {0};
-  mtx_init(&download_state.lock, mtx_plain);
-  create_file_segments(&download_state, filename, segment_size);
-
-  // Initialize peer swarm
-  PeerSwarm peer_swarm = {0};
-  mtx_init(&peer_swarm.lock, mtx_plain);
-
-  // Get initial peer list from tracker
-  printf("\nRetrieving peer list from tracker...\n");
-  get_peer_list_from_tracker(tracker_ip, tracker_port, filename, &peer_swarm);
-
-  // Add sample peers for demonstration
-  if (peer_swarm.num_peers == 0) {
-    printf("No peers returned from tracker, using demo peers\n");
-    add_peer(&peer_swarm, "192.168.1.101", 5001);
-    add_peer(&peer_swarm, "192.168.1.102", 5002);
-    add_peer(&peer_swarm, "192.168.1.103", 5003);
+  int32_t socketFD = createIPV4SockStream();
+  if (socketFD == -1) {
+    printf("Peer socket failed!\n");
+    exit(EXIT_FAILURE);
   }
 
-  printf("\nStarting to download threads...\n");
-
-  // Create and launch download threads
-  thrd_t download_thread1;
-
-  typedef struct {
-    FileDownloadState *state;
-    PeerSwarm *swarm;
-    const char *tracker_ip;
-    uint16_t tracker_port;
-  } DownloadThreadArgs;
-
-  // Launch download worker threads
-  DownloadThreadArgs *args1 = (DownloadThreadArgs *)malloc(sizeof(*args1));
-  args1->state = &download_state;
-  args1->swarm = &peer_swarm;
-  args1->tracker_ip = tracker_ip;
-  args1->tracker_port = tracker_port;
-
-  if (thrd_create(&download_thread1, download_thread_worker, args1) ==
-      thrd_success) {
-    thrd_detach(download_thread1);
-  } else {
-    printf("Failed to create download thread\n");
-    free(args1);
+  SocketAddress *address = createIPV4Addr(tracker_ip, tracker_port);
+  int32_t connectStatus = connectToSocket(socketFD, address);
+  if (connectStatus < 0) {
+    printf("Peer connection failed!\n");
+    exit(EXIT_FAILURE);
   }
 
-  printf("Download threads created\n");
-  printf("# of File segments: %u, Segment size: %u bytes\n",
-         download_state.num_segments, segment_size);
+  printf("Peer connection successful!\n");
+  while (true) {
+    char *line = NULL;
+    size_t lineSize = 0;
+    getline(&line, &lineSize, stdin);
 
-  printf("\nDownload in Progress:\n");
+    if (get_peer_command(line, socketFD) == CMD_EXIT) {
+      break;
+    }
+  }
 
-  // Let download proceed for a while
-  sleep_seconds(1);
-
-  printf("\nFinal Status:\n");
-  print_download_progress(&download_state);
-
-  // Cleanup
-  printf("\nCleaning up..\n");
-  free_file_segments(&download_state);
-  mtx_destroy(&download_state.lock);
-  mtx_destroy(&peer_swarm.lock);
-  peer_cleanup();
+  // // Initialize download state
+  // FileDownloadState download_state = {0};
+  // mtx_init(&download_state.lock, mtx_plain);
+  // create_file_segments(&download_state, filename, segment_size);
+  //
+  // // Initialize peer swarm
+  // PeerSwarm peer_swarm = {0};
+  // mtx_init(&peer_swarm.lock, mtx_plain);
+  //
+  // // Get initial peer list from tracker
+  // printf("\nRetrieving peer list from tracker...\n");
+  // get_peer_list_from_tracker(tracker_ip, tracker_port, filename,
+  // &peer_swarm);
+  //
+  // // Add sample peers for demonstration
+  // if (peer_swarm.num_peers == 0) {
+  //   printf("No peers returned from tracker, using demo peers\n");
+  //   add_peer(&peer_swarm, "192.168.1.101", 5001);
+  //   add_peer(&peer_swarm, "192.168.1.102", 5002);
+  //   add_peer(&peer_swarm, "192.168.1.103", 5003);
+  // }
+  //
+  // printf("\nStarting to download threads...\n");
+  //
+  // // Create and launch download threads
+  // thrd_t download_thread1;
+  //
+  // typedef struct {
+  //   FileDownloadState *state;
+  //   PeerSwarm *swarm;
+  //   const char *tracker_ip;
+  //   uint16_t tracker_port;
+  // } DownloadThreadArgs;
+  //
+  // // Launch download worker threads
+  // DownloadThreadArgs *args1 = (DownloadThreadArgs *)malloc(sizeof(*args1));
+  // args1->state = &download_state;
+  // args1->swarm = &peer_swarm;
+  // args1->tracker_ip = tracker_ip;
+  // args1->tracker_port = tracker_port;
+  //
+  // if (thrd_create(&download_thread1, download_thread_worker, args1) ==
+  //     thrd_success) {
+  //   thrd_detach(download_thread1);
+  // } else {
+  //   printf("Failed to create download thread\n");
+  //   free(args1);
+  // }
+  //
+  // printf("Download threads created\n");
+  // printf("# of File segments: %u, Segment size: %u bytes\n",
+  //        download_state.num_segments, segment_size);
+  //
+  // printf("\nDownload in Progress:\n");
+  //
+  // // Let download proceed for a while
+  // sleep_seconds(1);
+  //
+  // printf("\nFinal Status:\n");
+  // print_download_progress(&download_state);
+  //
+  // // Cleanup
+  // printf("\nCleaning up..\n");
+  // free_file_segments(&download_state);
+  // mtx_destroy(&download_state.lock);
+  // mtx_destroy(&peer_swarm.lock);
+  // peer_cleanup();
 
   printf("P2P Peer Program Completed\n");
 
