@@ -7,9 +7,11 @@ target_include_directories(peer_app
   ../platform
 )
 
-message(STATUS "Building peer_app standalone with stub socket API")
+message(STATUS "Peer: Platform API is ${PLATFORM_API}")
 
 target_compile_options(peer_app PRIVATE -Wall -Wextra -Wpedantic)
+
+find_package(Threads REQUIRED)
 
 target_include_directories(peer_app
   PRIVATE
@@ -19,4 +21,17 @@ target_include_directories(peer_app
 target_link_libraries(peer_app
   PRIVATE
   protocol_lib
+  Threads::Threads
 )
+
+if(PLATFORM_API STREQUAL "LINUX_API")
+  target_link_libraries(peer_app
+    PRIVATE
+    linux_api_lib
+  )
+elseif(PLATFORM_API STREQUAL "WINDOWS_API")
+  target_link_libraries(peer_app
+    PRIVATE
+    windows_api_lib
+  )
+endif()
